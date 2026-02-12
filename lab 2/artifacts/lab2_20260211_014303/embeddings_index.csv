@@ -1,0 +1,81 @@
+sample_id,path,source,genre,manifest_file,music_prob
+0,"Z:\DataSets\CC0-1.0-Music\freemusicarchive.org\Daniel Veesey - Sonata No. 07 in D Major, Op. 10 No. 3 - IV. Rondo Allegro.mp3",cc0_audio_clean,baroque_classical,cc0_audio_clean.csv,0.4665015637874603
+1,Z:\DataSets\rendered\phase1_symbolic_audio\pdmx\Qmc7RShoqv2UCa4Sm7n1ghUh2RkkD2WbxnGnxMtPZPw9nV.wav,phase1_pdmx,baroque_classical,phase1_symbolic_audio_manifest.csv,0.9867918491363525
+2,Z:\DataSets\rendered\phase1_symbolic_audio\pdmx\QmbALGjAHYytkQDyKCVH15Mk8euggFacsgjvsCfuHij9qr.wav,phase1_pdmx,baroque_classical,phase1_symbolic_audio_manifest.csv,0.9966392517089844
+3,Z:\DataSets\rendered\phase1_symbolic_audio\pdmx\Qma2HvSgZhELxGtTD9gnnVdqdarhChegyNoaAFKqoN64rF.wav,phase1_pdmx,baroque_classical,phase1_symbolic_audio_manifest.csv,0.9989827275276184
+4,Z:\DataSets\rendered\phase1_symbolic_audio\pdmx\QmZHbbXJTDQ9duRsyfMF1cnoUaL2W392P6gTbBT36aXyW6.wav,phase1_pdmx,baroque_classical,phase1_symbolic_audio_manifest.csv,0.9756017327308655
+5,Z:\DataSets\CC0-1.0-Music\freesound.org\707454__younoise__melted-snow-baroque-ambient.wav,cc0_audio_clean,baroque_classical,cc0_audio_clean.csv,0.990326464176178
+6,Z:\DataSets\rendered\phase1_symbolic_audio\pdmx\QmY76eqoMs86vycN6eFwPiAQSYSBwhgT6STmAspLBSowi2.wav,phase1_pdmx,baroque_classical,phase1_symbolic_audio_manifest.csv,0.818500816822052
+7,Z:\DataSets\rendered\phase1_symbolic_audio\pdmx\QmRqZjk6PF1TkXxg8vJVHduiSfzJVyUoCqk5sr8L1Z483s.wav,phase1_pdmx,baroque_classical,phase1_symbolic_audio_manifest.csv,0.7450335025787354
+8,Z:\DataSets\CC0-1.0-Music\chosic.com\Karine_Gilanyan_-_Beethoven_-_Piano_Sonata_nr15_in_D_major_op28_Pastoral_-_IV_Rondo_Allegro_ma_non_troppo(chosic.com).mp3,cc0_audio_clean,baroque_classical,cc0_audio_clean.csv,0.7107701897621155
+9,"Z:\DataSets\CC0-1.0-Music\freemusicarchive.org\Daniel Veesey - Sonata No. 32 in C Minor, Op. 111 - I. Maestoso - Allegro con brio ed appassionato.mp3",cc0_audio_clean,baroque_classical,cc0_audio_clean.csv,0.958414614200592
+10,Z:\DataSets\rendered\phase1_symbolic_audio\pdmx\QmeEdEp44K33Vm3fjEsRqZZwcWdqE5nBFg4k4uvrahyww9.wav,phase1_pdmx,baroque_classical,phase1_symbolic_audio_manifest.csv,0.9369053244590759
+11,Z:\DataSets\rendered\phase1_symbolic_audio\pdmx\QmbfsvNev8vp3Lg7vUPQPxUo3xUsiQpMea78uFx8VRs1KN.wav,phase1_pdmx,baroque_classical,phase1_symbolic_audio_manifest.csv,0.8803425431251526
+12,Z:\DataSets\CC0-1.0-Music\freemusicarchive.org\Jaan Patterson - Nulla in Mundo Pax Sincera (Vivaldi).mp3,cc0_audio_clean,baroque_classical,cc0_audio_clean.csv,0.9998936653137207
+13,Z:\DataSets\rendered\phase1_symbolic_audio\pdmx\QmNP9VysBPnXdxVtpCZKG9A8ssBZWGkKaTF8R5pGkz4Z4c.wav,phase1_pdmx,baroque_classical,phase1_symbolic_audio_manifest.csv,0.961331307888031
+14,Z:\DataSets\rendered\phase1_symbolic_audio\pdmx\QmWcbvPmFMna8B63mH4E4DbYBLNc2X2iUXpgEx9ZDcF9rh.wav,phase1_pdmx,baroque_classical,phase1_symbolic_audio_manifest.csv,0.9360804557800293
+15,Z:\DataSets\CC0-1.0-Music\chosic.com\Daniel_Veesey_-_04_-_Sonata_No_1_in_F_Minor_Op_2_No_1_-_IV_Prestissimo(chosic.com).mp3,cc0_audio_clean,baroque_classical,cc0_audio_clean.csv,0.8965770602226257
+16,Z:\DataSets\rendered\phase1_symbolic_audio\pdmx\QmUQ2E8QzNm3J1ZEusAJJ4fHDchA54QRWDdi9zmhfEQqk3.wav,phase1_pdmx,baroque_classical,phase1_symbolic_audio_manifest.csv,0.9725413918495178
+17,Z:\DataSets\rendered\phase1_symbolic_audio\pdmx\QmWVHoMwkR39KmzCyRitAmEct6ScRdLRuvUXM7nQQ4Egnm.wav,phase1_pdmx,baroque_classical,phase1_symbolic_audio_manifest.csv,0.9944804906845093
+18,Z:\DataSets\rendered\phase1_symbolic_audio\pdmx\QmPmxEji8YbnGLr5fmL1iXAbd2JA2jrWG2HSPGnax8hrDC.wav,phase1_pdmx,baroque_classical,phase1_symbolic_audio_manifest.csv,0.9983320832252502
+19,Z:\DataSets\rendered\phase1_symbolic_audio\pdmx\QmakXhRuqTUSHnQfTpZVtf2MFDELd6SfEeAez4sptxVSWv.wav,phase1_pdmx,baroque_classical,phase1_symbolic_audio_manifest.csv,0.9877734780311584
+20,Z:\DataSets\CC0-1.0-Music\freemusicarchive.org\Tadz - TLC & THC.mp3,cc0_audio_clean,cc0_other,cc0_audio_clean.csv,0.7795540690422058
+21,Z:\DataSets\CC0-1.0-Music\freemusicarchive.org\Zoliborz - The Call of the Polar Star.mp3,cc0_audio_clean,cc0_other,cc0_audio_clean.csv,0.9763386845588684
+22,Z:\DataSets\CC0-1.0-Music\chosic.com\Soft_and_Furious_-_10_-_Melancholic_Ending(chosic.com).mp3,cc0_audio_clean,cc0_other,cc0_audio_clean.csv,0.9237117767333984
+23,Z:\DataSets\CC0-1.0-Music\freemusicarchive.org\Monplaisir - A vault.mp3,cc0_audio_clean,cc0_other,cc0_audio_clean.csv,0.892894983291626
+24,Z:\DataSets\CC0-1.0-Music\freesound.org\642416__duisterwho__harmonica-blues-harp-instrument-solo.wav,cc0_audio_clean,cc0_other,cc0_audio_clean.csv,0.9815350770950317
+25,Z:\DataSets\CC0-1.0-Music\freemusicarchive.org\Kosta T - заморил червячка.mp3,cc0_audio_clean,cc0_other,cc0_audio_clean.csv,0.862152099609375
+26,"Z:\DataSets\CC0-1.0-Music\freemusicarchive.org\Monplaisir - Red Hair, Blue Sky.mp3",cc0_audio_clean,cc0_other,cc0_audio_clean.csv,0.2827356457710266
+27,Z:\DataSets\CC0-1.0-Music\freemusicarchive.org\Dancefloor is Lava - Souvenir de La Boum avec Sophie Marceau.mp3,cc0_audio_clean,cc0_other,cc0_audio_clean.csv,0.998543381690979
+28,Z:\DataSets\CC0-1.0-Music\freepd.com\Ghost Town.mp3,cc0_audio_clean,cc0_other,cc0_audio_clean.csv,0.7680991888046265
+29,Z:\DataSets\CC0-1.0-Music\freesound.org\562617__rhamby__harpforcc.mp3,cc0_audio_clean,cc0_other,cc0_audio_clean.csv,0.8204413056373596
+30,Z:\DataSets\CC0-1.0-Music\freemusicarchive.org\xik6 - boxed outsides inside two 15.mp3,cc0_audio_clean,cc0_other,cc0_audio_clean.csv,0.9999711513519287
+31,Z:\DataSets\CC0-1.0-Music\freemusicarchive.org\h92o - vemom 19 source of life 11.mp3,cc0_audio_clean,cc0_other,cc0_audio_clean.csv,0.9935749173164368
+32,Z:\DataSets\CC0-1.0-Music\freesound.org\171250__oddworld__pianokomplete.mp3,cc0_audio_clean,cc0_other,cc0_audio_clean.csv,0.7643314003944397
+33,Z:\DataSets\CC0-1.0-Music\chosic.com\Komiku_-_10_-_Is_everything_of_this_is_true_(chosic.com).mp3,cc0_audio_clean,cc0_other,cc0_audio_clean.csv,0.4504551887512207
+34,Z:\DataSets\CC0-1.0-Music\freesound.org\352606__macdaddyno1__electronic-music-geeks-talking.mp3,cc0_audio_clean,cc0_other,cc0_audio_clean.csv,0.391911119222641
+35,Z:\DataSets\CC0-1.0-Music\freemusicarchive.org\xik - Movie-22.09.11-17h40m49s.mp3,cc0_audio_clean,cc0_other,cc0_audio_clean.csv,0.999871015548706
+36,Z:\DataSets\CC0-1.0-Music\freemusicarchive.org\Kosta T - яи.mp3,cc0_audio_clean,cc0_other,cc0_audio_clean.csv,0.9411322474479675
+37,Z:\DataSets\CC0-1.0-Music\chosic.com\Komiku_-_01_-_Ancient_Heavy_Tech_Donjon(chosic.com).mp3,cc0_audio_clean,cc0_other,cc0_audio_clean.csv,0.8821104764938354
+38,Z:\DataSets\CC0-1.0-Music\freepd.com\Midnight in the Green House.mp3,cc0_audio_clean,cc0_other,cc0_audio_clean.csv,0.8181196451187134
+39,Z:\DataSets\CC0-1.0-Music\freemusicarchive.org\Monplaisir - Norma.mp3,cc0_audio_clean,cc0_other,cc0_audio_clean.csv,0.6048699617385864
+40,Z:\DataSets\XTc Files of Hip Hop\e-Lab - XTc Files of Hip Hop\XFd_AudioCD\FD14_master_cuts_098bpm\FD1404_lop_098bpm.wav,xtc_audio_clean,hiphop_xtc,xtc_audio_clean.csv,0.7705264091491699
+41,Z:\DataSets\XTc Files of Hip Hop\e-Lab - XTc Files of Hip Hop\XFd_AudioCD\FD09_construction_kit_098bpm\FD0904_bd.wav,xtc_audio_clean,hiphop_xtc,xtc_audio_clean.csv,0.9860867261886597
+42,Z:\DataSets\XTc Files of Hip Hop\e-Lab - XTc Files of Hip Hop\XFd_SoundTools\FD_Drums\FD_Bassdrum\FD9419_bd.wav,xtc_audio_clean,hiphop_xtc,xtc_audio_clean.csv,0.9890657663345337
+43,Z:\DataSets\XTc Files of Hip Hop\e-Lab - XTc Files of Hip Hop\XFd_SoundTools\FD_Drums\FD_Hihat\FD9822_cy.wav,xtc_audio_clean,hiphop_xtc,xtc_audio_clean.csv,0.9552111625671387
+44,Z:\DataSets\XTc Files of Hip Hop\e-Lab - XTc Files of Hip Hop\XFd_SoundTools\FD_Drums\FD_Hihat\FD9614_sh.wav,xtc_audio_clean,hiphop_xtc,xtc_audio_clean.csv,0.8240629434585571
+45,Z:\DataSets\XTc Files of Hip Hop\e-Lab - XTc Files of Hip Hop\XFd_AudioCD\FD11_master_cuts_098bpm\FD1109_hh.wav,xtc_audio_clean,hiphop_xtc,xtc_audio_clean.csv,0.8783336281776428
+46,Z:\DataSets\XTc Files of Hip Hop\e-Lab - XTc Files of Hip Hop\XFd_AudioCD\FD27_construction_kit_102bpm\FD2710_gtr.wav,xtc_audio_clean,hiphop_xtc,xtc_audio_clean.csv,0.737230122089386
+47,Z:\DataSets\XTc Files of Hip Hop\e-Lab - XTc Files of Hip Hop\XFd_AudioCD\FD66_bpm_lps_103_104bpm\FD6607_lop_104bpm.wav,xtc_audio_clean,hiphop_xtc,xtc_audio_clean.csv,0.13802233338356018
+48,Z:\DataSets\XTc Files of Hip Hop\e-Lab - XTc Files of Hip Hop\XFd_SoundTools\FD_Drums\FD_Hihat\FD4308_hh.wav,xtc_audio_clean,hiphop_xtc,xtc_audio_clean.csv,0.9746130704879761
+49,Z:\DataSets\XTc Files of Hip Hop\e-Lab - XTc Files of Hip Hop\XFd_AudioCD\FD25_construction_kit_095bpm\FD2503_lop_095bpm.wav,xtc_audio_clean,hiphop_xtc,xtc_audio_clean.csv,0.726044774055481
+50,Z:\DataSets\XTc Files of Hip Hop\e-Lab - XTc Files of Hip Hop\XFd_SoundTools\FD_Drums\FD_Bassdrum\FD4206_bd.wav,xtc_audio_clean,hiphop_xtc,xtc_audio_clean.csv,0.9855668544769287
+51,Z:\DataSets\XTc Files of Hip Hop\e-Lab - XTc Files of Hip Hop\XFd_LoopTools\FD_090_Loops_and_Seq\FD2407_Seq_Oldirty.wav,xtc_audio_clean,hiphop_xtc,xtc_audio_clean.csv,0.7161695957183838
+52,Z:\DataSets\XTc Files of Hip Hop\e-Lab - XTc Files of Hip Hop\XFd_SoundTools\FD_Drums\FD_Hihat\FD9818_cy.wav,xtc_audio_clean,hiphop_xtc,xtc_audio_clean.csv,0.7177824378013611
+53,Z:\DataSets\XTc Files of Hip Hop\e-Lab - XTc Files of Hip Hop\XFd_SoundTools\FD_Sounds\FD_Vox_Fx\FD2813_fx_war.wav,xtc_audio_clean,hiphop_xtc,xtc_audio_clean.csv,0.9522603154182434
+54,Z:\DataSets\XTc Files of Hip Hop\e-Lab - XTc Files of Hip Hop\XFd_SoundTools\FD_Drums\FD_Bassdrum\FD9427_bd.wav,xtc_audio_clean,hiphop_xtc,xtc_audio_clean.csv,0.985436737537384
+55,Z:\DataSets\XTc Files of Hip Hop\e-Lab - XTc Files of Hip Hop\XFd_AudioCD\FD76_bpm_top_095-5_098bpm\FD7604_lop_098bpm.wav,xtc_audio_clean,hiphop_xtc,xtc_audio_clean.csv,0.8636763691902161
+56,Z:\DataSets\XTc Files of Hip Hop\e-Lab - XTc Files of Hip Hop\XFd_AudioCD\FD74_bpm_top_092_093bpm\FD7402_lop_093bpm.wav,xtc_audio_clean,hiphop_xtc,xtc_audio_clean.csv,0.9937805533409119
+57,Z:\DataSets\XTc Files of Hip Hop\e-Lab - XTc Files of Hip Hop\XFd_AudioCD\FD39_xpert_beats_102bpm\FD3901_lop_102bpm.wav,xtc_audio_clean,hiphop_xtc,xtc_audio_clean.csv,0.5111086368560791
+58,Z:\DataSets\XTc Files of Hip Hop\e-Lab - XTc Files of Hip Hop\XFd_AudioCD\FD29_construction_kit_095bpm\FD2905_bd.wav,xtc_audio_clean,hiphop_xtc,xtc_audio_clean.csv,0.979661226272583
+59,Z:\DataSets\XTc Files of Hip Hop\e-Lab - XTc Files of Hip Hop\XFd_LoopTools\FD_100_Loops_and_Seq\FD1101_mLoop_Buster.wav,xtc_audio_clean,hiphop_xtc,xtc_audio_clean.csv,0.7338259816169739
+60,Z:\DataSets\hh_lfbb\72bpm_hh_lfbb_mid_001_04.wav,hh_lfbb_audio_clean,lofi_hh_lfbb,hh_lfbb_audio_clean.csv,0.999883770942688
+61,Z:\DataSets\hh_lfbb\89bpm_hh_lfbb_mid_009_09.wav,hh_lfbb_audio_clean,lofi_hh_lfbb,hh_lfbb_audio_clean.csv,0.9999991655349731
+62,Z:\DataSets\hh_lfbb\93bpm_hh_lfbb_mid_003_04.wav,hh_lfbb_audio_clean,lofi_hh_lfbb,hh_lfbb_audio_clean.csv,0.9999740123748779
+63,Z:\DataSets\hh_lfbb\94bpm_hh_lfbb_mid_011_03.wav,hh_lfbb_audio_clean,lofi_hh_lfbb,hh_lfbb_audio_clean.csv,0.9999978542327881
+64,Z:\DataSets\hh_lfbb\83bpm_hh_lfbb_mid_011_11.wav,hh_lfbb_audio_clean,lofi_hh_lfbb,hh_lfbb_audio_clean.csv,0.9999932050704956
+65,Z:\DataSets\hh_lfbb\82bpm_hh_lfbb_mid_012_05.wav,hh_lfbb_audio_clean,lofi_hh_lfbb,hh_lfbb_audio_clean.csv,0.9999780654907227
+66,Z:\DataSets\hh_lfbb\62bpm_hh_lfbb_mid_012_10.wav,hh_lfbb_audio_clean,lofi_hh_lfbb,hh_lfbb_audio_clean.csv,0.9995538592338562
+67,Z:\DataSets\hh_lfbb\68bpm_hh_lfbb_mid_011_13.wav,hh_lfbb_audio_clean,lofi_hh_lfbb,hh_lfbb_audio_clean.csv,0.9999994039535522
+68,Z:\DataSets\hh_lfbb\96bpm_hh_lfbb_mid_010_09.wav,hh_lfbb_audio_clean,lofi_hh_lfbb,hh_lfbb_audio_clean.csv,0.9996846914291382
+69,Z:\DataSets\hh_lfbb\95bpm_hh_lfbb_mid_010_09.wav,hh_lfbb_audio_clean,lofi_hh_lfbb,hh_lfbb_audio_clean.csv,0.999723494052887
+70,Z:\DataSets\hh_lfbb\98bpm_hh_lfbb_mid_008_05.wav,hh_lfbb_audio_clean,lofi_hh_lfbb,hh_lfbb_audio_clean.csv,1.0
+71,Z:\DataSets\hh_lfbb\64bpm_hh_lfbb_mid_003_03.wav,hh_lfbb_audio_clean,lofi_hh_lfbb,hh_lfbb_audio_clean.csv,0.9999971389770508
+72,Z:\DataSets\hh_lfbb\88bpm_hh_lfbb_mid_004_03.wav,hh_lfbb_audio_clean,lofi_hh_lfbb,hh_lfbb_audio_clean.csv,0.9999914169311523
+73,Z:\DataSets\hh_lfbb\80bpm_hh_lfbb_mid_011_15.wav,hh_lfbb_audio_clean,lofi_hh_lfbb,hh_lfbb_audio_clean.csv,0.9999909400939941
+74,Z:\DataSets\hh_lfbb\78bpm_hh_lfbb_mid_009_09.wav,hh_lfbb_audio_clean,lofi_hh_lfbb,hh_lfbb_audio_clean.csv,0.9999966621398926
+75,Z:\DataSets\hh_lfbb\84bpm_hh_lfbb_mid_008_01.wav,hh_lfbb_audio_clean,lofi_hh_lfbb,hh_lfbb_audio_clean.csv,0.9999985694885254
+76,Z:\DataSets\hh_lfbb\75bpm_hh_lfbb_mid_010_01.wav,hh_lfbb_audio_clean,lofi_hh_lfbb,hh_lfbb_audio_clean.csv,0.9999845027923584
+77,Z:\DataSets\hh_lfbb\70bpm_hh_lfbb_mid_012_11.wav,hh_lfbb_audio_clean,lofi_hh_lfbb,hh_lfbb_audio_clean.csv,0.9999810457229614
+78,Z:\DataSets\hh_lfbb\74bpm_hh_lfbb_mid_011_15.wav,hh_lfbb_audio_clean,lofi_hh_lfbb,hh_lfbb_audio_clean.csv,0.9999493360519409
+79,Z:\DataSets\hh_lfbb\64bpm_hh_lfbb_mid_010_11.wav,hh_lfbb_audio_clean,lofi_hh_lfbb,hh_lfbb_audio_clean.csv,0.9999866485595703

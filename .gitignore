@@ -1,0 +1,22 @@
+﻿# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv*/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Large run artifacts / caches
+saves/
+saves2/
+_render_smoke/
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
+
+# Temp
+*.log

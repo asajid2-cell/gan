@@ -1,0 +1,49 @@
+{
+  "metrics": {
+    "n_samples": 40,
+    "n_genres": 4,
+    "linear_probe_acc": 0.7,
+    "nearest_centroid_acc": 0.8,
+    "target_fidelity_metric": 0.8,
+    "silhouette": 0.1756315380334854
+  },
+  "genre_counts": {
+    "baroque_classical": 10,
+    "cc0_other": 10,
+    "hiphop_xtc": 10,
+    "lofi_hh_lfbb": 10
+  },
+  "label_map": {
+    "0": "baroque_classical",
+    "1": "cc0_other",
+    "2": "hiphop_xtc",
+    "3": "lofi_hh_lfbb"
+  },
+  "config": {
+    "checkpoint": "Z:\\328\\CMPUT328-A2\\codexworks\\301\\414-pl1\\saves\\lab1_run_combo_af_gate_exit_v2\\latest.pt",
+    "manifests_root": "Z:\\DataSets\\_lab1_manifests",
+    "manifest_files": [
+      "xtc_audio_clean.csv",
+      "hh_lfbb_audio_clean.csv",
+      "cc0_audio_clean.csv",
+      "phase1_symbolic_audio_manifest.csv"
+    ],
+    "per_genre_samples": 10,
+    "seed": 328,
+    "device": "auto",
+    "smoke": true
+  },
+  "assigned_genre_counts": {
+    "baroque_classical": 411,
+    "cc0_other": 9045,
+    "hiphop_xtc": 1647,
+    "lofi_hh_lfbb": 3332,
+    "unassigned": 289
+  },
+  "sampled_genre_counts": {
+    "baroque_classical": 10,
+    "cc0_other": 10,
+    "hiphop_xtc": 10,
+    "lofi_hh_lfbb": 10
+  }
+}
