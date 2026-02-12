@@ -8,6 +8,7 @@ from pathlib import Path
 import re
 from typing import Dict, List, Optional
 
+import joblib
 import numpy as np
 import pandas as pd
 import torch
@@ -27,7 +28,12 @@ from src.lab3_data import (
     stratified_group_split_indices,
     stratified_split_indices,
 )
-from src.lab3_eval import evaluate_classifier_quality, evaluate_genre_shift, fit_third_party_style_classifier
+from src.lab3_eval import (
+    evaluate_classifier_quality,
+    evaluate_genre_shift,
+    evaluate_lab1_style_judge_quality,
+    fit_third_party_style_classifier,
+)
 from src.lab3_models import (
     HybridMelDiscriminator,
     MelDiscriminator,
@@ -318,7 +324,18 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--g-real-label", type=float, default=1.0)
 
     p.add_argument("--mps-threshold", type=float, default=0.90)
+    p.add_argument("--style-acc-threshold", type=float, default=0.75)
     p.add_argument("--sf-threshold", type=float, default=0.85)
+    p.add_argument("--continuity-max", type=float, default=4.5)
+    p.add_argument("--hf-lf-ratio-max", type=float, default=1.2)
+    p.add_argument("--spectral-centroid-min-hz", type=float, default=300.0)
+    p.add_argument("--spectral-centroid-max-hz", type=float, default=4000.0)
+    p.add_argument("--max-fake-pairwise-cos", type=float, default=0.92)
+    p.add_argument("--style-judge-mode", choices=["fixed_logreg", "lab1_head", "logreg_train"], default="fixed_logreg")
+    p.add_argument("--style-judge-path", type=Path, default=None)
+    p.add_argument("--build-style-judge-if-missing", action=argparse.BooleanOptionalAction, default=True)
+    p.add_argument("--style-judge-min-val-acc", type=float, default=0.85)
+    p.add_argument("--fail-on-invalid-style-judge", action=argparse.BooleanOptionalAction, default=True)
     p.add_argument("--eval-max-batches", type=int, default=30)
 
     p.add_argument("--skip-stage1", action="store_true")
@@ -510,6 +527,19 @@ def main() -> None:
         "d_real_label": float(args.d_real_label),
         "d_fake_label": float(args.d_fake_label),
         "g_real_label": float(args.g_real_label),
+        "mps_threshold": float(args.mps_threshold),
+        "style_acc_threshold": float(args.style_acc_threshold),
+        "sf_threshold": float(args.sf_threshold),
+        "continuity_max": float(args.continuity_max),
+        "hf_lf_ratio_max": float(args.hf_lf_ratio_max),
+        "spectral_centroid_min_hz": float(args.spectral_centroid_min_hz),
+        "spectral_centroid_max_hz": float(args.spectral_centroid_max_hz),
+        "max_fake_pairwise_cos": float(args.max_fake_pairwise_cos),
+        "style_judge_mode": str(args.style_judge_mode),
+        "style_judge_path": str(args.style_judge_path) if args.style_judge_path else "",
+        "build_style_judge_if_missing": bool(args.build_style_judge_if_missing),
+        "style_judge_min_val_acc": float(args.style_judge_min_val_acc),
+        "fail_on_invalid_style_judge": bool(args.fail_on_invalid_style_judge),
         "auto_sample_export": bool(args.auto_sample_export),
         "sample_count": int(args.sample_count),
         "sample_target_mode": str(args.sample_target_mode),
@@ -608,6 +638,67 @@ def main() -> None:
         str(g): int(genre_to_source_idx[int(i)].item()) for g, i in genre_to_idx.items()
     }
     _save_json(state, state_path)
+
+    # Preflight: validate style judge quality on real validation data.
+    preflight_style_clf = None
+    if str(args.style_judge_mode) == "lab1_head":
+        judge_quality = evaluate_lab1_style_judge_quality(
+            frozen_encoder=frozen_encoder,
+            val_loader=val_loader,
+            genre_to_source_idx=genre_to_source_idx,
+            device=device,
+            max_batches=args.eval_max_batches,
+        )
+        judge_acc = float(judge_quality.get("style_judge_val_acc", float("nan")))
+    else:
+        if str(args.style_judge_mode) == "fixed_logreg":
+            judge_path = args.style_judge_path
+            if judge_path is None:
+                judge_path = out_root / "style_judge" / "genre_logreg.joblib"
+            judge_path = Path(judge_path)
+            if judge_path.exists():
+                preflight_style_clf = joblib.load(judge_path)
+            else:
+                if not bool(args.build_style_judge_if_missing):
+                    raise FileNotFoundError(
+                        f"Style judge not found at {judge_path}. "
+                        "Enable --build-style-judge-if-missing or pass --style-judge-path."
+                    )
+                judge_path.parent.mkdir(parents=True, exist_ok=True)
+                preflight_style_clf = fit_third_party_style_classifier(
+                    z_style_train=arrays["z_style"][train_idx],
+                    genre_idx_train=arrays["genre_idx"][train_idx],
+                )
+                joblib.dump(preflight_style_clf, judge_path)
+            judge_quality = evaluate_classifier_quality(
+                style_classifier=preflight_style_clf,
+                z_style_val=arrays["z_style"][val_idx],
+                genre_idx_val=arrays["genre_idx"][val_idx],
+            )
+            judge_quality["style_judge_mode"] = "fixed_logreg"
+            judge_quality["style_judge_path"] = str(judge_path)
+            judge_acc = float(judge_quality.get("style_classifier_val_acc", float("nan")))
+        else:
+            preflight_style_clf = fit_third_party_style_classifier(
+                z_style_train=arrays["z_style"][train_idx],
+                genre_idx_train=arrays["genre_idx"][train_idx],
+            )
+            judge_quality = evaluate_classifier_quality(
+                style_classifier=preflight_style_clf,
+                z_style_val=arrays["z_style"][val_idx],
+                genre_idx_val=arrays["genre_idx"][val_idx],
+            )
+            judge_quality["style_judge_mode"] = "logreg_train"
+            judge_acc = float(judge_quality.get("style_classifier_val_acc", float("nan")))
+
+    state["style_judge_preflight"] = judge_quality
+    _save_json(state, state_path)
+    if bool(args.fail_on_invalid_style_judge) and (not np.isfinite(judge_acc) or judge_acc < float(args.style_judge_min_val_acc)):
+        raise RuntimeError(
+            "Style judge preflight failed: "
+            f"val_acc={judge_acc:.4f} < required {float(args.style_judge_min_val_acc):.4f}. "
+            "Abort run to avoid optimizing against an invalid judge."
+        )
 
     # ---------------------------
     # Models
@@ -860,28 +951,64 @@ def main() -> None:
     # Final evaluation / exit audit
     # ---------------------------
     if not args.skip_eval:
-        print("[lab3] fitting third-party style classifier...")
-        style_clf = fit_third_party_style_classifier(
-            z_style_train=arrays["z_style"][train_idx],
-            genre_idx_train=arrays["genre_idx"][train_idx],
-        )
-        clf_quality = evaluate_classifier_quality(
-            style_classifier=style_clf,
-            z_style_val=arrays["z_style"][val_idx],
-            genre_idx_val=arrays["genre_idx"][val_idx],
-        )
+        style_clf = preflight_style_clf
+        if str(args.style_judge_mode) == "logreg_train":
+            print("[lab3] fitting third-party style classifier...")
+            style_clf = fit_third_party_style_classifier(
+                z_style_train=arrays["z_style"][train_idx],
+                genre_idx_train=arrays["genre_idx"][train_idx],
+            )
+            clf_quality = evaluate_classifier_quality(
+                style_classifier=style_clf,
+                z_style_val=arrays["z_style"][val_idx],
+                genre_idx_val=arrays["genre_idx"][val_idx],
+            )
+            clf_quality["style_judge_mode"] = "logreg_train"
+        elif str(args.style_judge_mode) == "fixed_logreg":
+            print("[lab3] evaluating fixed persisted logreg style judge...")
+            if style_clf is None:
+                judge_path = args.style_judge_path
+                if judge_path is None:
+                    judge_path = out_root / "style_judge" / "genre_logreg.joblib"
+                style_clf = joblib.load(Path(judge_path))
+            clf_quality = evaluate_classifier_quality(
+                style_classifier=style_clf,
+                z_style_val=arrays["z_style"][val_idx],
+                genre_idx_val=arrays["genre_idx"][val_idx],
+            )
+            clf_quality["style_judge_mode"] = "fixed_logreg"
+        else:
+            print("[lab3] evaluating fixed Lab1-head style judge...")
+            clf_quality = evaluate_lab1_style_judge_quality(
+                frozen_encoder=frozen_encoder,
+                val_loader=val_loader,
+                genre_to_source_idx=genre_to_source_idx,
+                device=device,
+                max_batches=args.eval_max_batches,
+            )
         audit = evaluate_genre_shift(
             generator=generator,
             frozen_encoder=frozen_encoder,
             val_loader=val_loader,
             cond_bank=cond_bank,
             style_classifier=style_clf,
+            genre_to_source_idx=genre_to_source_idx,
             device=device,
+            style_judge_mode=str(args.style_judge_mode),
             mps_threshold=args.mps_threshold,
+            style_acc_threshold=args.style_acc_threshold,
             sf_threshold=args.sf_threshold,
+            continuity_max=args.continuity_max,
+            hf_lf_ratio_max=args.hf_lf_ratio_max,
+            spectral_centroid_min_hz=args.spectral_centroid_min_hz,
+            spectral_centroid_max_hz=args.spectral_centroid_max_hz,
+            max_fake_pairwise_cos=args.max_fake_pairwise_cos,
             max_batches=args.eval_max_batches,
         )
+        judge_acc = float(clf_quality.get("style_judge_val_acc", clf_quality.get("style_classifier_val_acc", float("nan"))))
         audit["classifier_quality"] = clf_quality
+        audit["style_judge_valid"] = bool(np.isfinite(judge_acc) and judge_acc >= float(args.style_judge_min_val_acc))
+        audit["style_judge_min_val_acc_required"] = float(args.style_judge_min_val_acc)
         audit["run_dir"] = str(out_dir)
         _save_json(audit, out_dir / "lab3_exit_audit.json")
 
@@ -891,6 +1018,12 @@ def main() -> None:
         state["audit"] = audit
         _save_json(state, state_path)
         print(f"[lab3] audit: {audit}")
+
+        if bool(args.fail_on_invalid_style_judge) and not bool(audit.get("style_judge_valid", False)):
+            raise RuntimeError(
+                "Style judge validity check failed after eval: "
+                f"judge_acc={judge_acc:.4f} < required {float(args.style_judge_min_val_acc):.4f}."
+            )
 
     # ---------------------------
     # Post-train sample export (always available via CLI)

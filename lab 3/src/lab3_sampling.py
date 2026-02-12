@@ -12,7 +12,12 @@ import numpy as np
 import pandas as pd
 import torch
 
-from .lab3_bridge import FrozenLab1Encoder, denormalize_log_mel
+from .lab3_bridge import (
+    FrozenLab1Encoder,
+    denormalize_log_mel,
+    extract_log_mel,
+    fix_log_mel_frames,
+)
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
@@ -87,6 +92,12 @@ def _mel_db_to_audio(mel_db: np.ndarray, sr: int, griffin_lim_iters: int) -> np.
     if np.max(np.abs(y)) > 0:
         y = y / (np.max(np.abs(y)) + 1e-8)
     return y.astype(np.float32)
+
+
+def _audio_to_mel_db(y: np.ndarray, sr: int, n_frames: int) -> np.ndarray:
+    mel = extract_log_mel(y.astype(np.float32), sr=int(sr))
+    mel = fix_log_mel_frames(mel, n_frames=int(n_frames))
+    return mel.astype(np.float32)
 
 
 def build_balanced_generation_index(
@@ -222,6 +233,13 @@ def export_posttrain_samples(
         y_fake = _mel_db_to_audio(mel_fake_db, sr=sr, griffin_lim_iters=int(griffin_lim_iters))
         y_real = _mel_db_to_audio(mel_real_db, sr=sr, griffin_lim_iters=int(griffin_lim_iters)) if write_real_audio else None
 
+        fake_gl_db = _audio_to_mel_db(y_fake, sr=sr, n_frames=mel_fake_db.shape[1])
+        gl_fake_floor_l1 = float(np.mean(np.abs(fake_gl_db - mel_fake_db)))
+        gl_real_floor_l1 = float("nan")
+        if write_real_audio and y_real is not None:
+            real_gl_db = _audio_to_mel_db(y_real, sr=sr, n_frames=mel_real_db.shape[1])
+            gl_real_floor_l1 = float(np.mean(np.abs(real_gl_db - mel_real_db)))
+
         fake_wav = out_dir / f"sample_{sample_id:03d}_fake_to_{tgt_g}.wav"
         real_wav = out_dir / f"sample_{sample_id:03d}_real.wav"
         mel_plot = out_dir / f"sample_{sample_id:03d}_mel.png"
@@ -273,6 +291,8 @@ def export_posttrain_samples(
                 "mps_cosine": float(mps),
                 "style_pred_source": style_pred_source,
                 "style_conf_target": style_conf_target,
+                "gl_fake_floor_l1": gl_fake_floor_l1,
+                "gl_real_floor_l1": gl_real_floor_l1,
                 "mel_plot": str(mel_plot),
                 "real_wav": str(real_wav) if write_real_audio else "",
                 "fake_wav": str(fake_wav),
@@ -287,6 +307,8 @@ def export_posttrain_samples(
         "griffin_lim_iters": int(griffin_lim_iters),
         "seed": int(seed),
         "write_real_audio": bool(write_real_audio),
+        "mean_gl_fake_floor_l1": float(np.nanmean([r.get("gl_fake_floor_l1", np.nan) for r in recs])),
+        "mean_gl_real_floor_l1": float(np.nanmean([r.get("gl_real_floor_l1", np.nan) for r in recs])),
         "output_dir": str(out_dir),
         "summary_csv": str(summary_csv),
     }
@@ -298,4 +320,3 @@ def export_posttrain_samples(
         "summary_csv": str(summary_csv),
         "meta_json": str(meta_path),
     }
-
