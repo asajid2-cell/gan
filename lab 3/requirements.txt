@@ -3,3 +3,5 @@ pandas
 torch
 librosa
 scikit-learn
+transformers
+sentencepiece

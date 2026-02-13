@@ -81,3 +81,70 @@ python run_lab3.py `
   --stage1-epochs 20 `
   --stage2-epochs 20
 ```
+
+## Codec-Latent Transfer Track (Fresh Architecture)
+
+This track replaces mel-target generation with frozen EnCodec latents and waveform decoding:
+
+- source waveform -> frozen EnCodec encoder -> quantized latent embedding
+- translator conditions on `z_content` (Lab1) + target style exemplars
+- frozen EnCodec decoder outputs waveform (no Griffin-Lim in training path)
+
+Entry point:
+
+```powershell
+cd "lab 3"
+python run_lab3_codec.py --smoke
+```
+
+Recommended fresh 3-run sequence:
+
+```powershell
+cd "lab 3"
+
+# run1: identity-only sanity (stage1 focus)
+python run_lab3_codec.py `
+  --run-name run1 `
+  --stage1-epochs 8 `
+  --stage2-epochs 0 `
+  --stage3-epochs 0
+
+# run2: cross-style transfer
+python run_lab3_codec.py `
+  --run-name run2 `
+  --stage1-epochs 8 `
+  --stage2-epochs 16 `
+  --stage3-epochs 0
+
+# run3: transfer + diversity pressure
+python run_lab3_codec.py `
+  --run-name run3 `
+  --stage1-epochs 8 `
+  --stage2-epochs 16 `
+  --stage3-epochs 8 `
+  --stage3-style-dropout-p 0.25 `
+  --mode-seeking-weight 1.0
+```
+
+## Fast Manual Clip Triage
+
+Use the interactive picker to quickly audition random clips and accept/reject them into lists:
+
+```powershell
+cd "lab 3"
+python run_lab3_clip_picker.py `
+  --input-csv "../saves2/lab3_synthesis/run20/samples/posttrain_samples/generation_summary.csv" `
+  --path-col fake_wav `
+  --base-dir ".." `
+  --session-name run20_fake_triage `
+  --max-clips 200 `
+  --auto-open
+```
+
+Controls:
+
+- `a` accept
+- `r` reject
+- `s` skip
+- `o` reopen/replay
+- `q` quit

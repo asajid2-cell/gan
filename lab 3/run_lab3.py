@@ -122,6 +122,151 @@ def _load_json(path: Path, default: Optional[Dict] = None) -> Dict:
     return {} if default is None else default
 
 
+def _coerce_like(current_value, saved_value):
+    if isinstance(current_value, bool):
+        return bool(saved_value)
+    if isinstance(current_value, int) and not isinstance(current_value, bool):
+        return int(saved_value)
+    if isinstance(current_value, float):
+        return float(saved_value)
+    if isinstance(current_value, Path):
+        return Path(saved_value)
+    return saved_value
+
+
+def _restore_resume_args_from_state(args: argparse.Namespace, state: Dict) -> List[str]:
+    """
+    For --mode resume, restore architecture/optimizer-critical args from the saved run config
+    so checkpoints remain loadable across CLI default changes.
+    """
+    if str(args.mode) != "resume":
+        return []
+    cfg = state.get("config")
+    if not isinstance(cfg, dict) or not cfg:
+        return []
+
+    keys = [
+        # Model architecture (shape-critical)
+        "n_frames",
+        "generator_norm",
+        "generator_spectral_norm",
+        "generator_upsample",
+        "generator_mrf",
+        "generator_mrf_kernels",
+        "discriminator_arch",
+        "discriminator_scales",
+        "discriminator_subband_low_bins",
+        "discriminator_subband_mid_bins",
+        "discriminator_periods",
+        "discriminator_spectral_norm",
+        "stage2_disc_use_content_cond",
+        # Core GAN behavior
+        "gan_loss",
+        "lr_g",
+        "lr_d",
+        "stage2_d_lr_mult",
+        "r1_gamma",
+        "r1_interval",
+        "d_real_label",
+        "d_fake_label",
+        "g_real_label",
+        # Stabilization/scheduling knobs
+        "stage1_d_step_period",
+        "stage2_d_step_period",
+        "g_grad_clip_norm",
+        "d_grad_clip_norm",
+        "stage2_d_loss_floor_for_step",
+        "stage2_style_class_balance",
+    ]
+
+    restored: List[str] = []
+    for k in keys:
+        if k not in cfg:
+            continue
+        sv = cfg.get(k)
+        if sv is None or sv == "":
+            continue
+        if not hasattr(args, k):
+            continue
+        cur = getattr(args, k)
+        val = _coerce_like(cur, sv)
+        if cur != val:
+            setattr(args, k, val)
+            restored.append(k)
+    return restored
+
+
+def _infer_resume_arch_from_checkpoint(resume_dir: Path) -> Dict[str, object]:
+    """
+    Infer a minimal set of architecture-critical args from checkpoint tensor shapes.
+    This is a fallback for legacy runs whose run_state config may be incomplete or stale.
+    """
+    ckpt_candidates = [
+        Path(resume_dir) / "checkpoints" / "stage2_latest.pt",
+        Path(resume_dir) / "checkpoints" / "stage1_latest.pt",
+    ]
+    ckpt_path = None
+    for p in ckpt_candidates:
+        if p.exists():
+            ckpt_path = p
+            break
+    if ckpt_path is None:
+        return {}
+
+    payload = torch.load(str(ckpt_path), map_location="cpu")
+    g_sd = payload.get("generator", {})
+    d_sd = payload.get("discriminator", {})
+    if not isinstance(g_sd, dict) or not isinstance(d_sd, dict):
+        return {}
+
+    out: Dict[str, object] = {}
+
+    # Generator upsampling type and MRF presence.
+    w = g_sd.get("up1.0.weight")
+    if isinstance(w, torch.Tensor) and w.ndim == 4:
+        k_h, k_w = int(w.shape[-2]), int(w.shape[-1])
+        if k_h == 4 and k_w == 4:
+            out["generator_upsample"] = "transpose"
+        elif k_h == 3 and k_w == 3:
+            out["generator_upsample"] = "pixelshuffle" if int(w.shape[0]) >= int(w.shape[1]) else "nearest"
+    out["generator_mrf"] = any(str(k).startswith("mrf1.branches.") for k in g_sd.keys())
+
+    # Discriminator architecture family.
+    d_keys = [str(k) for k in d_sd.keys()]
+    if any(k.startswith("ms.") for k in d_keys) and any(k.startswith("mp.") for k in d_keys):
+        out["discriminator_arch"] = "hybrid"
+    elif any(k.startswith("d_low.") for k in d_keys):
+        out["discriminator_arch"] = "subband"
+    elif any(k.startswith("discriminators.") for k in d_keys):
+        disc_ids = sorted({int(m.group(1)) for k in d_keys for m in [re.match(r"^discriminators\.(\d+)\.", k)] if m})
+        n_disc = len(disc_ids)
+        if n_disc <= 3:
+            out["discriminator_arch"] = "multiscale"
+            out["discriminator_scales"] = int(max(1, n_disc))
+        else:
+            out["discriminator_arch"] = "multiperiod"
+            std_periods = [1, 2, 3, 5, 7, 11, 13]
+            use = std_periods[:n_disc] if n_disc <= len(std_periods) else list(range(1, n_disc + 1))
+            out["discriminator_periods"] = ",".join(str(x) for x in use)
+    else:
+        out["discriminator_arch"] = "single"
+
+    # Spectral-norm wrapping and conditional dimensionality.
+    out["discriminator_spectral_norm"] = any("weight_orig" in k for k in d_keys)
+    cond_w = None
+    for k, v in d_sd.items():
+        if not isinstance(v, torch.Tensor):
+            continue
+        ks = str(k)
+        if ks.endswith("cond_proj.weight") or ks.endswith("cond_proj.weight_orig"):
+            cond_w = v
+            break
+    if isinstance(cond_w, torch.Tensor) and cond_w.ndim == 2:
+        cond_dim = int(cond_w.shape[1])
+        out["stage2_disc_use_content_cond"] = bool(cond_dim > 200)
+    return out
+
+
 def _append_history(csv_path: Path, rows: List[Dict]) -> None:
     if not rows:
         return
@@ -225,19 +370,19 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--num-workers", type=int, default=0)
     p.add_argument("--generator-norm", choices=["instance", "batch"], default="instance")
     p.add_argument("--generator-spectral-norm", action="store_true")
-    p.add_argument("--generator-upsample", choices=["transpose", "pixelshuffle", "nearest"], default="transpose")
-    p.add_argument("--generator-mrf", action="store_true")
+    p.add_argument("--generator-upsample", choices=["transpose", "pixelshuffle", "nearest"], default="pixelshuffle")
+    p.add_argument("--generator-mrf", action=argparse.BooleanOptionalAction, default=True)
     p.add_argument("--generator-mrf-kernels", type=str, default="3,7,11")
     p.add_argument(
         "--discriminator-arch",
         choices=["single", "multiscale", "subband", "multiperiod", "hybrid"],
-        default="single",
+        default="hybrid",
     )
     p.add_argument("--discriminator-scales", type=int, default=3)
     p.add_argument("--discriminator-subband-low-bins", type=int, default=32)
     p.add_argument("--discriminator-subband-mid-bins", type=int, default=32)
     p.add_argument("--discriminator-periods", type=str, default="1,2,3,5")
-    p.add_argument("--discriminator-spectral-norm", action="store_true")
+    p.add_argument("--discriminator-spectral-norm", action=argparse.BooleanOptionalAction, default=True)
 
     p.add_argument("--stage1-epochs", type=int, default=20)
     p.add_argument("--stage2-epochs", type=int, default=20)
@@ -245,20 +390,24 @@ def parse_args() -> argparse.Namespace:
 
     p.add_argument("--lr-g", type=float, default=2e-4)
     p.add_argument("--lr-d", type=float, default=2e-4)
-    p.add_argument("--gan-loss", choices=["bce", "hinge"], default="bce")
-    p.add_argument("--adv-weight", type=float, default=0.5)
-    p.add_argument("--r1-gamma", type=float, default=0.0)
+    p.add_argument("--gan-loss", choices=["bce", "hinge"], default="hinge")
+    p.add_argument("--adv-weight", type=float, default=0.4)
+    p.add_argument("--r1-gamma", type=float, default=1.0)
     p.add_argument("--r1-interval", type=int, default=16)
+    p.add_argument("--stage1-d-step-period", type=int, default=1)
+    p.add_argument("--stage2-d-step-period", type=int, default=2)
+    p.add_argument("--g-grad-clip-norm", type=float, default=5.0)
+    p.add_argument("--d-grad-clip-norm", type=float, default=5.0)
     p.add_argument("--recon-weight", type=float, default=8.0)
     p.add_argument("--content-weight", type=float, default=2.0)
-    p.add_argument("--style-weight", type=float, default=1.0)
+    p.add_argument("--style-weight", type=float, default=3.0)
     p.add_argument("--continuity-weight", type=float, default=1.0)
     p.add_argument("--mrstft-weight", type=float, default=0.0)
     p.add_argument("--stage1-mrstft-weight", type=float, default=None)
     p.add_argument("--stage2-mrstft-weight", type=float, default=None)
     p.add_argument("--mrstft-resolutions", type=str, default="64,16,64;128,32,128;256,64,256")
     p.add_argument("--flatness-weight", type=float, default=0.5)
-    p.add_argument("--feature-match-weight", type=float, default=0.0)
+    p.add_argument("--feature-match-weight", type=float, default=1.0)
     p.add_argument("--perceptual-weight", type=float, default=0.0)
     p.add_argument("--style-hinge-weight", type=float, default=0.0)
     p.add_argument("--contrastive-weight", type=float, default=0.0)
@@ -274,9 +423,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--highpass-anchor-weight", type=float, default=0.0)
     p.add_argument("--mel-diversity-weight", type=float, default=0.0)
     p.add_argument("--target-profile-weight", type=float, default=0.0)
-    p.add_argument("--stage2-d-lr-mult", type=float, default=1.0)
-    p.add_argument("--stage2-content-start", type=float, default=None)
-    p.add_argument("--stage2-content-end", type=float, default=None)
+    p.add_argument("--stage2-d-lr-mult", type=float, default=0.2)
+    p.add_argument("--stage2-content-start", type=float, default=2.0)
+    p.add_argument("--stage2-content-end", type=float, default=1.0)
     p.add_argument("--stage2-style-label-smoothing", type=float, default=0.0)
     p.add_argument("--stage2-style-only-warmup-epochs", type=int, default=0)
     p.add_argument("--stage2-g-lr-warmup-epochs", type=int, default=0)
@@ -311,6 +460,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--stage2-high-gain", type=float, default=0.5)
     p.add_argument("--stage2-spectral-tilt-max-ratio", type=float, default=0.7)
     p.add_argument("--stage2-zcr-proxy-target-max", type=float, default=0.18)
+    p.add_argument("--stage2-d-loss-floor-for-step", type=float, default=0.20)
+    p.add_argument("--stage2-style-class-balance", action=argparse.BooleanOptionalAction, default=False)
     p.add_argument("--stage2-style-thaw-last-epochs", type=int, default=0)
     p.add_argument("--stage2-style-thaw-lr", type=float, default=1e-6)
     p.add_argument(
@@ -348,7 +499,7 @@ def parse_args() -> argparse.Namespace:
         choices=["balanced_random", "random", "round_robin"],
         default="balanced_random",
     )
-    p.add_argument("--sample-griffin-lim-iters", type=int, default=48)
+    p.add_argument("--sample-griffin-lim-iters", type=int, default=128)
     p.add_argument("--sample-export-tag", type=str, default="posttrain_samples")
     p.add_argument("--sample-write-real-audio", action=argparse.BooleanOptionalAction, default=True)
     p.add_argument("--smoke", action="store_true")
@@ -406,6 +557,18 @@ def main() -> None:
             "created_at": datetime.now().isoformat(timespec="seconds"),
         },
     )
+    restored_keys = _restore_resume_args_from_state(args, state)
+    if restored_keys:
+        print(f"[lab3] resume config restored from state for keys: {', '.join(sorted(restored_keys))}")
+    if str(args.mode) == "resume":
+        inferred = _infer_resume_arch_from_checkpoint(out_dir)
+        inferred_keys: List[str] = []
+        for k, v in inferred.items():
+            if hasattr(args, k) and getattr(args, k) != v:
+                setattr(args, k, _coerce_like(getattr(args, k), v))
+                inferred_keys.append(k)
+        if inferred_keys:
+            print(f"[lab3] resume arch inferred from checkpoint for keys: {', '.join(sorted(inferred_keys))}")
 
     if args.device == "auto":
         device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -456,6 +619,10 @@ def main() -> None:
         "adv_weight": float(args.adv_weight),
         "r1_gamma": float(args.r1_gamma),
         "r1_interval": int(args.r1_interval),
+        "stage1_d_step_period": int(args.stage1_d_step_period),
+        "stage2_d_step_period": int(args.stage2_d_step_period),
+        "g_grad_clip_norm": float(args.g_grad_clip_norm),
+        "d_grad_clip_norm": float(args.d_grad_clip_norm),
         "recon_weight": float(args.recon_weight),
         "content_weight": float(args.content_weight),
         "style_weight": float(args.style_weight),
@@ -520,6 +687,8 @@ def main() -> None:
         "stage2_high_gain": float(args.stage2_high_gain),
         "stage2_spectral_tilt_max_ratio": float(args.stage2_spectral_tilt_max_ratio),
         "stage2_zcr_proxy_target_max": float(args.stage2_zcr_proxy_target_max),
+        "stage2_d_loss_floor_for_step": float(args.stage2_d_loss_floor_for_step),
+        "stage2_style_class_balance": bool(args.stage2_style_class_balance),
         "stage2_style_thaw_last_epochs": int(args.stage2_style_thaw_last_epochs),
         "stage2_style_thaw_lr": float(args.stage2_style_thaw_lr),
         "stage2_style_thaw_scope": str(args.stage2_style_thaw_scope),
@@ -817,6 +986,9 @@ def main() -> None:
             disc_use_content_cond=bool(args.stage2_disc_use_content_cond),
             r1_gamma=float(args.r1_gamma),
             r1_interval=int(args.r1_interval),
+            d_step_period=int(args.stage1_d_step_period),
+            g_grad_clip_norm=float(args.g_grad_clip_norm),
+            d_grad_clip_norm=float(args.d_grad_clip_norm),
             weights=weights_stage1,
             d_real_label=args.d_real_label,
             d_fake_label=args.d_fake_label,
@@ -874,6 +1046,9 @@ def main() -> None:
             disc_use_content_cond=bool(args.stage2_disc_use_content_cond),
             r1_gamma=float(args.r1_gamma),
             r1_interval=int(args.r1_interval),
+            d_step_period=int(args.stage2_d_step_period),
+            g_grad_clip_norm=float(args.g_grad_clip_norm),
+            d_grad_clip_norm=float(args.d_grad_clip_norm),
             weights=weights_stage2,
             content_weight_start=args.stage2_content_start,
             content_weight_end=args.stage2_content_end,
@@ -910,6 +1085,8 @@ def main() -> None:
             high_gain=args.stage2_high_gain,
             spectral_tilt_max_ratio=args.stage2_spectral_tilt_max_ratio,
             zcr_proxy_target_max=args.stage2_zcr_proxy_target_max,
+            d_loss_floor_for_step=args.stage2_d_loss_floor_for_step,
+            style_class_balance=bool(args.stage2_style_class_balance),
             style_thaw_last_epochs=args.stage2_style_thaw_last_epochs,
             style_thaw_lr=args.stage2_style_thaw_lr,
             style_thaw_scope=args.stage2_style_thaw_scope,
@@ -1004,6 +1181,7 @@ def main() -> None:
             spectral_centroid_max_hz=args.spectral_centroid_max_hz,
             max_fake_pairwise_cos=args.max_fake_pairwise_cos,
             max_batches=args.eval_max_batches,
+            idx_to_genre={int(v): str(k) for k, v in genre_to_idx.items()},
         )
         judge_acc = float(clf_quality.get("style_judge_val_acc", clf_quality.get("style_classifier_val_acc", float("nan"))))
         audit["classifier_quality"] = clf_quality

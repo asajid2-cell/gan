@@ -104,6 +104,7 @@ def evaluate_genre_shift(
     spectral_centroid_max_hz: float = 4000.0,
     max_fake_pairwise_cos: float = 0.92,
     max_batches: Optional[int] = None,
+    idx_to_genre: Optional[Dict[int, str]] = None,
 ) -> Dict:
     generator.eval()
     n_genres = int(cond_bank.shape[0])
@@ -120,6 +121,7 @@ def evaluate_genre_shift(
     fake_centroid_vals = []
     fake_hf_lf_ratio_vals = []
     fake_collapse_feats = []
+    per_target: Dict[int, Dict[str, list]] = {}
     n = 0
 
     first_batch = next(iter(val_loader))
@@ -178,6 +180,16 @@ def evaluate_genre_shift(
                 sf_margin_vals.append((conf - second).astype(np.float32))
                 sf_entropy_adj_vals.append((conf * (1.0 - entropy)).astype(np.float32))
                 sf_pred_hits.append((pred == tgt_np).astype(np.float32))
+                for i_loc in range(len(tgt_np)):
+                    tg = int(tgt_np[i_loc])
+                    rec = per_target.setdefault(
+                        tg,
+                        {"conf": [], "margin": [], "entropy_adj": [], "hit": [], "centroid": [], "hf_lf": []},
+                    )
+                    rec["conf"].append(float(conf[i_loc]))
+                    rec["margin"].append(float(conf[i_loc] - second[i_loc]))
+                    rec["entropy_adj"].append(float(conf[i_loc] * (1.0 - entropy[i_loc])))
+                    rec["hit"].append(float(pred[i_loc] == tgt_np[i_loc]))
         else:
             if style_classifier is None:
                 raise ValueError("style_classifier is required for style_judge_mode='logreg_train'.")
@@ -196,6 +208,16 @@ def evaluate_genre_shift(
             sf_margin_vals.append((conf - second).astype(np.float32))
             sf_entropy_adj_vals.append((conf * (1.0 - entropy)).astype(np.float32))
             sf_pred_hits.append((pred == tgt_np).astype(np.float32))
+            for i_loc in range(len(tgt_np)):
+                tg = int(tgt_np[i_loc])
+                rec = per_target.setdefault(
+                    tg,
+                    {"conf": [], "margin": [], "entropy_adj": [], "hit": [], "centroid": [], "hf_lf": []},
+                )
+                rec["conf"].append(float(conf[i_loc]))
+                rec["margin"].append(float(conf[i_loc] - second[i_loc]))
+                rec["entropy_adj"].append(float(conf[i_loc] * (1.0 - entropy[i_loc])))
+                rec["hit"].append(float(pred[i_loc] == tgt_np[i_loc]))
 
         fake_db_np = fake_db.detach().cpu().numpy().astype(np.float32)
         for i in range(fake_db_np.shape[0]):
@@ -211,6 +233,13 @@ def evaluate_genre_shift(
             fake_hf_lf_ratio_vals.append(hf_lf)
             feat = np.concatenate([mel_db.mean(axis=1), mel_db.std(axis=1)], axis=0)
             fake_collapse_feats.append(feat.astype(np.float32))
+            tg_i = int(tgt_idx[i].item())
+            rec = per_target.setdefault(
+                tg_i,
+                {"conf": [], "margin": [], "entropy_adj": [], "hit": [], "centroid": [], "hf_lf": []},
+            )
+            rec["centroid"].append(float(centroid))
+            rec["hf_lf"].append(float(hf_lf))
 
         n += len(tgt_idx)
 
@@ -261,6 +290,20 @@ def evaluate_genre_shift(
     }
     passes["lab3_done"] = bool(all(bool(v) for v in passes.values()))
 
+    per_target_metrics: Dict[str, Dict[str, float]] = {}
+    for tg, rec in sorted(per_target.items(), key=lambda kv: kv[0]):
+        key = str(idx_to_genre.get(int(tg), str(tg))) if idx_to_genre is not None else str(tg)
+        n_t = int(max(len(rec["conf"]), len(rec["centroid"])))
+        per_target_metrics[key] = {
+            "n_eval": n_t,
+            "style_fidelity_conf": float(np.mean(rec["conf"])) if rec["conf"] else float("nan"),
+            "style_conf_margin": float(np.mean(rec["margin"])) if rec["margin"] else float("nan"),
+            "style_conf_entropy_adjusted": float(np.mean(rec["entropy_adj"])) if rec["entropy_adj"] else float("nan"),
+            "style_acc": float(np.mean(rec["hit"])) if rec["hit"] else float("nan"),
+            "fake_centroid_hz": float(np.mean(rec["centroid"])) if rec["centroid"] else float("nan"),
+            "fake_hf_lf_ratio": float(np.mean(rec["hf_lf"])) if rec["hf_lf"] else float("nan"),
+        }
+
     return {
         "n_eval": int(n),
         "mps": mps,
@@ -272,6 +315,7 @@ def evaluate_genre_shift(
         "fake_centroid_hz": fake_centroid,
         "fake_hf_lf_ratio": fake_hf_lf_ratio,
         "fake_pairwise_feature_cos": fake_pairwise_feature_cos,
+        "per_target_metrics": per_target_metrics,
         "thresholds": {
             "mps": float(mps_threshold),
             "style_acc": float(style_acc_threshold),

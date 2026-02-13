@@ -86,6 +86,7 @@ class StageTrainConfig:
     adaptive_content_high: float = 0.5
     adaptive_conf_low: float = 0.5
     adaptive_conf_high: float = 0.8
+    style_class_balance: bool = False
     style_critic_lr: float = 2e-4
     contrastive_temp: float = 0.10
     diversity_margin: float = 0.90
@@ -110,6 +111,10 @@ class StageTrainConfig:
     g_real_label: float = 1.0
     r1_gamma: float = 0.0
     r1_interval: int = 16
+    d_loss_floor_for_step: float = 0.0
+    d_step_period: int = 1
+    g_grad_clip_norm: float = 0.0
+    d_grad_clip_norm: float = 0.0
     style_thaw_last_epochs: int = 0
     style_thaw_lr: float = 1e-6
     style_thaw_scope: str = "style_head"
@@ -369,6 +374,8 @@ def train_stage1(
             "loss_mrstft": 0.0,
         }
         nb = 0
+        d_steps_taken = 0
+        d_steps_skipped = 0
         for bidx, batch in enumerate(train_loader):
             if stage_cfg.max_batches_per_epoch is not None and bidx >= int(stage_cfg.max_batches_per_epoch):
                 break
@@ -378,6 +385,7 @@ def train_stage1(
             gidx = batch["genre_idx"].to(device).long()
             cond = cond_bank[gidx]
             cond_d = torch.cat([cond, zc], dim=1) if bool(stage_cfg.disc_use_content_cond) else cond
+            do_d_step = (step_idx % int(max(1, stage_cfg.d_step_period))) == 0
 
             # D step
             with torch.no_grad():
@@ -392,12 +400,18 @@ def train_stage1(
                 d_fake_label=float(stage_cfg.d_fake_label),
             )
             r1 = torch.zeros((), device=real.device)
-            if float(stage_cfg.r1_gamma) > 0.0 and (step_idx % int(max(1, stage_cfg.r1_interval)) == 0):
-                r1 = 0.5 * float(stage_cfg.r1_gamma) * _r1_penalty(discriminator, real, cond_d)
-                loss_d = loss_d + r1
-            opt_d.zero_grad(set_to_none=True)
-            loss_d.backward()
-            opt_d.step()
+            if do_d_step:
+                if float(stage_cfg.r1_gamma) > 0.0 and (step_idx % int(max(1, stage_cfg.r1_interval)) == 0):
+                    r1 = 0.5 * float(stage_cfg.r1_gamma) * _r1_penalty(discriminator, real, cond_d)
+                    loss_d = loss_d + r1
+                opt_d.zero_grad(set_to_none=True)
+                loss_d.backward()
+                if float(stage_cfg.d_grad_clip_norm) > 0.0:
+                    torch.nn.utils.clip_grad_norm_(discriminator.parameters(), max_norm=float(stage_cfg.d_grad_clip_norm))
+                opt_d.step()
+                d_steps_taken += 1
+            else:
+                d_steps_skipped += 1
 
             # G step
             fake = generator(zc, cond)
@@ -432,6 +446,8 @@ def train_stage1(
             )
             opt_g.zero_grad(set_to_none=True)
             loss_g.backward()
+            if float(stage_cfg.g_grad_clip_norm) > 0.0:
+                torch.nn.utils.clip_grad_norm_(generator.parameters(), max_norm=float(stage_cfg.g_grad_clip_norm))
             opt_g.step()
 
             nb += 1
@@ -449,6 +465,9 @@ def train_stage1(
         ep = _epoch_mean(agg, nb)
         ep["stage"] = "stage1"
         ep["epoch"] = int(epoch + 1)
+        ep["d_steps_taken"] = float(d_steps_taken)
+        ep["d_steps_skipped"] = float(d_steps_skipped)
+        ep["d_step_rate"] = float(d_steps_taken / max(1, (d_steps_taken + d_steps_skipped)))
         history.append(ep)
         _save_stage_checkpoint(
             checkpoint_path,
@@ -519,6 +538,19 @@ def train_stage2(
     opt_g = torch.optim.Adam(generator.parameters(), lr=stage_cfg.lr_g, betas=stage_cfg.betas)
     opt_d = torch.optim.Adam(discriminator.parameters(), lr=stage_cfg.lr_d, betas=stage_cfg.betas)
     opt_sc = torch.optim.Adam(style_critic.parameters(), lr=float(stage_cfg.style_critic_lr), betas=stage_cfg.betas)
+    # Optional class weights for style losses; disable by default when target sampling is balanced.
+    if bool(stage_cfg.style_class_balance):
+        ds_genre = getattr(train_loader.dataset, "genre_idx", None)
+        if ds_genre is not None:
+            y = np.asarray(ds_genre, dtype=np.int64)
+            counts = np.bincount(y, minlength=n_genres).astype(np.float32)
+            inv = 1.0 / np.maximum(counts, 1.0)
+            w_arr = inv / max(float(inv.mean()), 1e-8)
+            class_w = torch.from_numpy(w_arr).to(device=device, dtype=torch.float32)
+        else:
+            class_w = torch.ones((n_genres,), device=device, dtype=torch.float32)
+    else:
+        class_w = torch.ones((n_genres,), device=device, dtype=torch.float32)
     start_epoch = (
         _load_stage_checkpoint(
             checkpoint_path,
@@ -661,6 +693,8 @@ def train_stage2(
             "loss_r1": 0.0,
             "loss_sc": 0.0,
             "loss_adv": 0.0,
+            "loss_l1": 0.0,
+            "loss_continuity": 0.0,
             "loss_mrstft": 0.0,
             "loss_content": 0.0,
             "loss_style_ce": 0.0,
@@ -688,6 +722,8 @@ def train_stage2(
             "cond_alpha": 0.0,
         }
         nb = 0
+        d_steps_taken = 0
+        d_steps_skipped = 0
         ema_style_conf = None
         style_lp_bins = None
         for bidx, batch in enumerate(train_loader):
@@ -754,6 +790,7 @@ def train_stage2(
             if noise_parts:
                 cond = F.normalize(cond + sum(noise_parts), dim=-1)
             cond_d = torch.cat([cond, zc], dim=1) if bool(stage_cfg.disc_use_content_cond) else cond
+            do_d_step = (step_idx % int(max(1, stage_cfg.d_step_period))) == 0
 
             real_db = denormalize_log_mel(real)
             if style_lp_bins is None:
@@ -771,7 +808,7 @@ def train_stage2(
                 enc_real_lp = frozen_encoder.forward_log_mel_tensor(real_db_lp)
             z_style_real = enc_real_lp["z_style"].detach()
             sc_real_logits = style_critic(z_style_real)
-            loss_sc = F.cross_entropy(sc_real_logits, gidx)
+            loss_sc = F.cross_entropy(sc_real_logits, gidx, weight=class_w)
             opt_sc.zero_grad(set_to_none=True)
             loss_sc.backward()
             opt_sc.step()
@@ -789,12 +826,18 @@ def train_stage2(
                 d_fake_label=float(stage_cfg.d_fake_label),
             )
             r1 = torch.zeros((), device=real.device)
-            if float(stage_cfg.r1_gamma) > 0.0 and (step_idx % int(max(1, stage_cfg.r1_interval)) == 0):
+            if do_d_step and float(stage_cfg.r1_gamma) > 0.0 and (step_idx % int(max(1, stage_cfg.r1_interval)) == 0):
                 r1 = 0.5 * float(stage_cfg.r1_gamma) * _r1_penalty(discriminator, real, cond_d)
                 loss_d = loss_d + r1
-            opt_d.zero_grad(set_to_none=True)
-            loss_d.backward()
-            opt_d.step()
+            if do_d_step and (float(stage_cfg.d_loss_floor_for_step) <= 0.0 or float(loss_d.item()) >= float(stage_cfg.d_loss_floor_for_step)):
+                opt_d.zero_grad(set_to_none=True)
+                loss_d.backward()
+                if float(stage_cfg.d_grad_clip_norm) > 0.0:
+                    torch.nn.utils.clip_grad_norm_(discriminator.parameters(), max_norm=float(stage_cfg.d_grad_clip_norm))
+                opt_d.step()
+                d_steps_taken += 1
+            else:
+                d_steps_skipped += 1
 
             # G step
             fake = generator(zc, cond)
@@ -824,6 +867,7 @@ def train_stage2(
             loss_style = F.cross_entropy(
                 style_logits,
                 tgt_idx,
+                weight=class_w,
                 label_smoothing=float(stage_cfg.style_label_smoothing),
             )
             probs = torch.softmax(style_logits, dim=1)
@@ -834,6 +878,7 @@ def train_stage2(
             loss_style_mid = F.cross_entropy(
                 style_logits_mid,
                 tgt_idx,
+                weight=class_w,
                 label_smoothing=float(stage_cfg.style_label_smoothing),
             )
             # Hinge-style pressure toward target confidence threshold.
@@ -876,11 +921,13 @@ def train_stage2(
                 tgt_idx=tgt_idx,
                 temp=float(stage_cfg.batch_infonce_temp),
             )
-            loss_mrstft = multi_resolution_stft_loss(
+            loss_l1 = F.l1_loss(fake, real)
+            loss_continuity = multi_resolution_stft_loss(
                 fake,
                 real,
                 resolutions=stage_cfg.mrstft_resolutions,
             )
+            loss_mrstft = loss_continuity
             loss_lowmid_recon = frequency_weighted_l1_loss(
                 fake,
                 real,
@@ -945,6 +992,8 @@ def train_stage2(
             w = stage_cfg.weights
             loss_g = (
                 w.adv * loss_adv
+                + w.recon_l1 * loss_l1
+                + w.continuity * loss_continuity
                 + float(content_w) * loss_content
                 + w.style * loss_style
                 + w.style_mid * loss_style_mid
@@ -970,6 +1019,10 @@ def train_stage2(
             if thaw_active and opt_style_thaw is not None:
                 opt_style_thaw.zero_grad(set_to_none=True)
             loss_g.backward()
+            if float(stage_cfg.g_grad_clip_norm) > 0.0:
+                torch.nn.utils.clip_grad_norm_(generator.parameters(), max_norm=float(stage_cfg.g_grad_clip_norm))
+                if thaw_active and style_thaw_params:
+                    torch.nn.utils.clip_grad_norm_(style_thaw_params, max_norm=float(stage_cfg.g_grad_clip_norm))
             opt_g.step()
             if thaw_active and opt_style_thaw is not None:
                 opt_style_thaw.step()
@@ -980,6 +1033,8 @@ def train_stage2(
             agg["loss_r1"] += float(r1.item())
             agg["loss_sc"] += float(loss_sc.item())
             agg["loss_adv"] += float(loss_adv.item())
+            agg["loss_l1"] += float(loss_l1.item())
+            agg["loss_continuity"] += float(loss_continuity.item())
             agg["loss_mrstft"] += float(loss_mrstft.item())
             agg["loss_content"] += float(loss_content.item())
             agg["loss_style_ce"] += float(loss_style.item())
@@ -1011,6 +1066,9 @@ def train_stage2(
         ep = _epoch_mean(agg, nb)
         ep["stage"] = "stage2"
         ep["epoch"] = int(epoch + 1)
+        ep["d_steps_taken"] = float(d_steps_taken)
+        ep["d_steps_skipped"] = float(d_steps_skipped)
+        ep["d_step_rate"] = float(d_steps_taken / max(1, (d_steps_taken + d_steps_skipped)))
         history.append(ep)
         _save_stage_checkpoint(
             checkpoint_path,
