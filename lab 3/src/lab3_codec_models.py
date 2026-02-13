@@ -221,4 +221,5 @@ class CodecTrainWeights:
     mrstft: float = 2.0
     feature_match: float = 1.0
     mode_seeking: float = 0.0
-
+    style_push: float = 0.0
+    delta_budget: float = 0.0

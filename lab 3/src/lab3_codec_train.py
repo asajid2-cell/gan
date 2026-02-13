@@ -11,6 +11,7 @@ import torchaudio
 from torch.utils.data import DataLoader
 
 from .lab3_codec_bridge import FrozenEncodec
+from .lab3_codec_judge import CodecStyleJudge
 from .lab3_codec_models import (
     CodecLatentTranslator,
     CodecTrainWeights,
@@ -43,6 +44,10 @@ class CodecStageTrainConfig:
     d_grad_clip_norm: float = 0.0
     weights: CodecTrainWeights = field(default_factory=CodecTrainWeights)
     mode_seeking_noise_scale: float = 1.0
+    mode_seeking_target: float = 0.03
+    style_push_margin: float = 0.30
+    delta_budget: float = 0.12
+    style_loss_mode: str = "lab1_cos"  # lab1_cos | codec_judge_ce
     wave_mrstft_resolutions: Tuple[Tuple[int, int, int], ...] = (
         (512, 128, 512),
         (1024, 256, 1024),
@@ -117,12 +122,15 @@ def _mix_style_condition(
     cond_mode: str,
     alpha: float,
     centroid_bank: torch.Tensor,
-    exemplar_bank: Dict[int, torch.Tensor],
+    exemplar_bank: Optional[Dict[int, torch.Tensor]],
     device: torch.device,
     exemplar_noise_std: float,
 ) -> torch.Tensor:
     z_cent = centroid_bank[target_idx].to(device)
-    z_ex = _sample_bank_rows(exemplar_bank, target_idx, device=device)
+    if exemplar_bank is None or len(exemplar_bank) == 0:
+        z_ex = z_cent
+    else:
+        z_ex = _sample_bank_rows(exemplar_bank, target_idx, device=device)
     if exemplar_noise_std > 0.0:
         z_ex = z_ex + torch.randn_like(z_ex) * float(exemplar_noise_std)
     mode = str(cond_mode).strip().lower()
@@ -261,10 +269,11 @@ def train_codec_stage(
     discriminator: MultiScaleWaveDiscriminator,
     codec: FrozenEncodec,
     lab1_encoder,
+    style_judge: Optional[CodecStyleJudge],
     train_loader: DataLoader,
     n_genres: int,
     style_centroid_bank: torch.Tensor,
-    style_exemplar_bank: Dict[int, torch.Tensor],
+    style_exemplar_bank: Optional[Dict[int, torch.Tensor]],
     q_exemplar_bank: Dict[int, torch.Tensor],
     out_ckpt_dir: Path,
     device: torch.device,
@@ -274,6 +283,10 @@ def train_codec_stage(
     discriminator.train()
     style_centroid_bank = style_centroid_bank.to(device)
     out_ckpt_dir = Path(out_ckpt_dir)
+    if style_judge is not None:
+        style_judge.eval()
+        for p in style_judge.parameters():
+            p.requires_grad = False
 
     opt_g = torch.optim.AdamW(
         generator.parameters(),
@@ -325,6 +338,8 @@ def train_codec_stage(
         m_adv = 0.0
         m_fm = 0.0
         m_ms = 0.0
+        m_style_push = 0.0
+        m_delta_budget = 0.0
         d_steps_taken = 0
         d_steps_skipped = 0
         n_batches = 0
@@ -433,9 +448,25 @@ def train_codec_stage(
             mel_hat = lab1_wave_adapter(x_hat)
             out_hat = lab1_encoder.forward_log_mel_tensor(mel_hat)
             zc_hat = F.normalize(out_hat["z_content"], dim=-1)
-            zs_hat = F.normalize(out_hat["z_style"], dim=-1)
             loss_content = (1.0 - F.cosine_similarity(zc_hat, zc_src, dim=-1)).mean()
-            loss_style = (1.0 - F.cosine_similarity(zs_hat, z_style_tgt, dim=-1)).mean()
+            loss_style = torch.tensor(0.0, device=device)
+            loss_style_push = torch.tensor(0.0, device=device)
+            if str(stage_cfg.style_loss_mode).strip().lower() == "codec_judge_ce" and style_judge is not None:
+                logits = style_judge(q_hat)
+                loss_style = F.cross_entropy(logits, tgt_genre_idx)
+                if str(stage_cfg.stage_name) != "stage1":
+                    probs = torch.softmax(logits, dim=1)
+                    p_src = probs.gather(1, src_genre_idx.view(-1, 1)).squeeze(1)
+                    loss_style_push = F.relu(p_src - float(stage_cfg.style_push_margin)).mean()
+            else:
+                zs_hat = F.normalize(out_hat["z_style"], dim=-1)
+                loss_style = (1.0 - F.cosine_similarity(zs_hat, z_style_tgt, dim=-1)).mean()
+                if str(stage_cfg.stage_name) != "stage1":
+                    cos_to_src_style = F.cosine_similarity(zs_hat, zs_src, dim=-1)
+                    loss_style_push = F.relu(cos_to_src_style - float(stage_cfg.style_push_margin)).mean()
+
+            delta_mean = (q_hat - q_src).abs().mean(dim=(1, 2))
+            loss_delta_budget = F.relu(delta_mean - float(stage_cfg.delta_budget)).mean()
 
             loss_ms = torch.tensor(0.0, device=device)
             if float(stage_cfg.weights.mode_seeking) > 0.0:
@@ -449,11 +480,11 @@ def train_codec_stage(
                     style_dropout_p=float(stage_cfg.style_dropout_p),
                     style_jitter_std=float(stage_cfg.style_jitter_std),
                 )
-                x_hat2 = codec.decode_embeddings(q_hat2)
-                num = torch.mean(torch.abs(x_hat - x_hat2))
+                # Use latent-space mode seeking to avoid a second expensive waveform decode.
+                num = torch.mean(torch.abs(q_hat - q_hat2))
                 den = torch.mean(torch.abs(noise - noise2)).clamp_min(1e-5)
                 ratio = num / den
-                loss_ms = (1.0 / ratio.clamp_min(1e-5)).clamp_max(10.0)
+                loss_ms = F.relu(torch.tensor(float(stage_cfg.mode_seeking_target), device=device) - ratio)
 
             w = stage_cfg.weights
             loss_g = (
@@ -465,6 +496,8 @@ def train_codec_stage(
                 + float(w.content) * loss_content
                 + float(w.style) * loss_style
                 + float(w.mode_seeking) * loss_ms
+                + float(w.style_push) * loss_style_push
+                + float(w.delta_budget) * loss_delta_budget
             )
 
             opt_g.zero_grad(set_to_none=True)
@@ -482,6 +515,8 @@ def train_codec_stage(
             m_adv += float(loss_adv.detach().cpu())
             m_fm += float(loss_fm.detach().cpu())
             m_ms += float(loss_ms.detach().cpu())
+            m_style_push += float(loss_style_push.detach().cpu())
+            m_delta_budget += float(loss_delta_budget.detach().cpu())
 
         n = max(1, n_batches)
         row = {
@@ -495,6 +530,8 @@ def train_codec_stage(
             "loss_continuity": m_lat_cont / n,
             "loss_content": m_content / n,
             "loss_style": m_style / n,
+            "loss_style_push": m_style_push / n,
+            "loss_delta_budget": m_delta_budget / n,
             "loss_mrstft": m_mrstft / n,
             "loss_mode_seeking": m_ms / n,
             "d_steps_taken": int(d_steps_taken),
