@@ -28,6 +28,7 @@ from src.lab3_codec_data import (
     stratified_group_split_indices,
     stratified_split_indices,
 )
+from src.lab3_data import apply_genre_schema, genre_num_sources, genre_source_table, materialize_genre_samples_balanced_sources
 from src.lab3_codec_judge import fit_codec_style_judge, freeze_judge, CodecStyleJudge
 from src.lab3_codec_models import CodecLatentTranslator, CodecTrainWeights, MultiScaleWaveDiscriminator
 from src.lab3_codec_train import (
@@ -128,6 +129,10 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--manifests-root", type=Path, default=Path("Z:/DataSets/_lab1_manifests"))
     p.add_argument("--manifest-files", nargs="*", default=DEFAULT_MANIFESTS)
     p.add_argument("--per-genre-samples", type=int, default=600)
+    p.add_argument("--genre-schema", choices=["default4", "binary_acoustic_beats"], default="default4")
+    p.add_argument("--require-min-sources-per-genre", type=int, default=1)
+    p.add_argument("--balance-sources-within-genre", action=argparse.BooleanOptionalAction, default=False)
+    p.add_argument("--require-is-music", action=argparse.BooleanOptionalAction, default=False)
     p.add_argument("--chunks-per-track", type=int, default=2)
     p.add_argument("--chunk-sampling", choices=["uniform", "random"], default="uniform")
     p.add_argument("--min-start-sec", type=float, default=0.0)
@@ -136,7 +141,11 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--val-ratio", type=float, default=0.15)
     p.add_argument("--seed", type=int, default=328)
 
-    p.add_argument("--style-cond-source", choices=["lab1_zstyle", "random_genre"], default="random_genre")
+    p.add_argument(
+        "--style-cond-source",
+        choices=["lab1_zstyle", "codec_judge_embed", "random_genre"],
+        default="codec_judge_embed",
+    )
     p.add_argument("--style-loss-mode", choices=["lab1_cos", "codec_judge_ce"], default="codec_judge_ce")
     p.add_argument("--style-judge-mode", choices=["lab1_zstyle", "codec_judge"], default="codec_judge")
     p.add_argument("--style-judge-epochs", type=int, default=6)
@@ -144,6 +153,8 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--style-judge-batch-size", type=int, default=64)
     p.add_argument("--style-judge-hidden", type=int, default=256)
     p.add_argument("--style-judge-emb-dim", type=int, default=128)
+    p.add_argument("--style-judge-source-adv-weight", type=float, default=0.30)
+    p.add_argument("--style-judge-source-grl-lambda", type=float, default=1.0)
     p.add_argument("--style-judge-min-val-acc", type=float, default=0.75)
     p.add_argument("--fail-on-style-judge-weak", action=argparse.BooleanOptionalAction, default=False)
     p.add_argument("--refit-style-judge", action=argparse.BooleanOptionalAction, default=False)
@@ -196,6 +207,7 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--stage1-content-weight", type=float, default=1.0)
     p.add_argument("--stage1-mrstft-weight", type=float, default=2.0)
     p.add_argument("--stage1-latent-l1-weight", type=float, default=6.0)
+    p.add_argument("--stage1-style-embed-align-weight", type=float, default=0.0)
 
     p.add_argument("--stage2-cond-mode", choices=["centroid", "exemplar", "mix"], default="exemplar")
     p.add_argument("--stage2-cond-alpha-start", type=float, default=0.8)
@@ -209,6 +221,7 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--stage2-content-weight", type=float, default=2.5)
     p.add_argument("--stage2-style-weight", type=float, default=9.0)
     p.add_argument("--stage2-mrstft-weight", type=float, default=0.20)
+    p.add_argument("--stage2-style-embed-align-weight", type=float, default=0.50)
 
     p.add_argument("--stage3-cond-mode", choices=["centroid", "exemplar", "mix"], default="exemplar")
     p.add_argument("--stage3-cond-alpha-start", type=float, default=0.5)
@@ -222,6 +235,7 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--stage3-content-weight", type=float, default=2.0)
     p.add_argument("--stage3-style-weight", type=float, default=11.0)
     p.add_argument("--stage3-mrstft-weight", type=float, default=0.05)
+    p.add_argument("--stage3-style-embed-align-weight", type=float, default=0.75)
     p.add_argument("--stage3-mode-seeking-weight", type=float, default=0.05)
     p.add_argument("--stage3-mode-seeking-target", type=float, default=0.03)
 
@@ -380,6 +394,32 @@ def _style_bank_diagnostics(z_style: np.ndarray, genre_idx: np.ndarray, n_genres
         "offdiag_centroid_cos_mean": float(np.mean(offdiag)) if offdiag.size > 0 else float("nan"),
         "nearest_centroid_acc": float(acc),
     }
+
+
+@torch.no_grad()
+def _build_style_bank_from_codec_judge(
+    style_judge: CodecStyleJudge,
+    q_emb: np.ndarray,
+    genre_idx: np.ndarray,
+    n_genres: int,
+    device: torch.device,
+    batch_size: int = 128,
+) -> tuple[torch.Tensor, Dict[int, torch.Tensor], Dict[str, float]]:
+    style_judge.eval()
+    x = torch.from_numpy(q_emb.astype(np.float32))
+    out: List[np.ndarray] = []
+    for i in range(0, int(x.shape[0]), int(max(1, batch_size))):
+        xb = x[i : i + int(max(1, batch_size))].to(device)
+        emb = style_judge.embed(xb).detach().cpu().numpy().astype(np.float32)
+        out.append(emb)
+    emb_all = np.concatenate(out, axis=0) if out else np.zeros((0, style_judge.emb_dim), dtype=np.float32)
+    if emb_all.shape[0] != q_emb.shape[0]:
+        raise RuntimeError("Codec judge embedding extraction failed; shape mismatch.")
+    emb_all = emb_all / (np.linalg.norm(emb_all, axis=1, keepdims=True) + 1e-8)
+    cent = build_style_centroid_bank(emb_all, genre_idx, n_genres=n_genres).to(device)
+    ex = build_style_exemplar_bank(emb_all, genre_idx, n_genres=n_genres)
+    diag = _style_bank_diagnostics(emb_all, genre_idx, n_genres=n_genres)
+    return cent, ex, diag
 
 
 def _evaluate_codec_gate(
@@ -611,14 +651,37 @@ def main() -> None:
         save_codec_cache(cache_dir=cache_dir, index_df=index_df, arrays=arrays, genre_to_idx=genre_to_idx, meta=cache_meta)
     else:
         manifests_df = load_manifests(Path(args.manifests_root), manifest_files=args.manifest_files)
-        assigned_df = assign_genres(manifests_df)
-        samples_df = materialize_genre_samples(
-            assigned_df=assigned_df,
+        assigned_df = apply_genre_schema(assign_genres(manifests_df), schema=str(args.genre_schema))
+        if bool(args.balance_sources_within_genre):
+            samples_df = materialize_genre_samples_balanced_sources(
+                assigned_df=assigned_df,
+                per_genre_samples=int(args.per_genre_samples),
+                seed=int(args.seed),
+                drop_unassigned=True,
+                require_existing_paths=True,
+                require_is_music=bool(args.require_is_music),
+            )
+        else:
+            samples_df = materialize_genre_samples(
+                assigned_df=assigned_df,
             per_genre_samples=int(args.per_genre_samples),
             seed=int(args.seed),
             drop_unassigned=True,
             require_existing_paths=True,
+            require_is_music=bool(args.require_is_music),
         )
+        # Ingestion audit: each genre must span multiple sources to avoid trivial source leakage.
+        g_sources = genre_num_sources(samples_df)
+        tbl = genre_source_table(samples_df)
+        tbl.to_csv(out_dir / "ingestion_genre_source_table.csv", index=False)
+        min_sources = int(args.require_min_sources_per_genre)
+        if min_sources > 1:
+            bad = {g: n for g, n in g_sources.items() if int(n) < min_sources}
+            if bad:
+                raise RuntimeError(
+                    f"Genres with < {min_sources} sources: {bad}. "
+                    f"See {out_dir / 'ingestion_genre_source_table.csv'} or use --genre-schema binary_acoustic_beats / --balance-sources-within-genre."
+                )
         index_df, arrays, genre_to_idx, cache_meta = build_codec_cache(
             samples_df=samples_df,
             codec=codec,
@@ -669,54 +732,18 @@ def main() -> None:
     q_train = arrays["q_emb"][train_idx]
 
     q_exemplar_bank = build_q_exemplar_bank(q_train, genre_train, n_genres=n_genres)
-    lab1_style_diag = _style_bank_diagnostics(z_style_train, genre_train, n_genres=n_genres)
-    _save_json({"metrics": lab1_style_diag}, out_dir / "lab1_style_bank_diagnostics.json")
-
-    if str(args.style_cond_source).strip().lower() == "lab1_zstyle":
-        style_centroid_bank = build_style_centroid_bank(z_style_train, genre_train, n_genres=n_genres).to(device)
-        style_exemplar_bank = build_style_exemplar_bank(z_style_train, genre_train, n_genres=n_genres)
-        style_bank_diag = lab1_style_diag
-    else:
-        rng_cond = np.random.default_rng(int(args.seed) + 913)
-        dim = int(arrays["z_style"].shape[1])
-        cond = rng_cond.standard_normal((int(n_genres), dim), dtype=np.float32)
-        cond = cond / (np.linalg.norm(cond, axis=1, keepdims=True) + 1e-8)
-        style_centroid_bank = torch.from_numpy(cond).to(device)
-        style_exemplar_bank = None
-        z_fake = np.repeat(cond, repeats=8, axis=0)
-        y_fake = np.repeat(np.arange(int(n_genres), dtype=np.int64), repeats=8, axis=0)
-        style_bank_diag = _style_bank_diagnostics(z_fake, y_fake, n_genres=n_genres)
-    style_bank_pass = {
-        "centroid_cos": bool(
-            style_bank_diag["offdiag_centroid_cos_mean"] <= float(args.style_bank_max_centroid_cos)
-        ),
-        "nearest_centroid_acc": bool(
-            style_bank_diag["nearest_centroid_acc"] >= float(args.style_bank_min_nearest_centroid_acc)
-        ),
-    }
-    style_bank_pass["all"] = bool(all(style_bank_pass.values()))
-    style_bank_out = {
-        "metrics": style_bank_diag,
-        "thresholds": {
-            "max_centroid_cos": float(args.style_bank_max_centroid_cos),
-            "min_nearest_centroid_acc": float(args.style_bank_min_nearest_centroid_acc),
-        },
-        "passes": style_bank_pass,
-    }
-    _save_json(style_bank_out, out_dir / "style_bank_diagnostics.json")
-    state["style_bank_diagnostics"] = style_bank_out
-    _save_json(state, state_path)
-    print(
-        "[style-bank]"
-        f" centroid_cos={style_bank_diag['offdiag_centroid_cos_mean']:.4f}"
-        f" nc_acc={style_bank_diag['nearest_centroid_acc']:.4f}"
-        f" pass={style_bank_pass['all']}"
-    )
-    if bool(args.fail_on_style_bank_collapse) and not bool(style_bank_pass["all"]):
-        raise RuntimeError("Style bank collapsed; aborting before training.")
-
+    source_codes, source_names = pd.factorize(index_df["source"].astype(str), sort=True)
+    source_idx_all = source_codes.astype(np.int64)
+    n_sources = int(len(source_names))
+    source_name_map = {int(i): str(name) for i, name in enumerate(source_names.tolist())}
+    state["source_index_map"] = {str(k): v for k, v in source_name_map.items()}
     style_judge: Optional[CodecStyleJudge] = None
-    style_judge_info: Dict[str, object] = {"mode": str(args.style_judge_mode)}
+    style_judge_info: Dict[str, object] = {
+        "mode": str(args.style_judge_mode),
+        "source_adv_weight": float(args.style_judge_source_adv_weight),
+        "source_grl_lambda": float(args.style_judge_source_grl_lambda),
+        "n_sources": int(n_sources),
+    }
     if str(args.style_judge_mode).strip().lower() == "codec_judge":
         judge_path = out_dir / "codec_style_judge.pt"
         if judge_path.exists() and bool(args.mode == "resume") and not bool(args.refit_style_judge):
@@ -727,6 +754,7 @@ def main() -> None:
                 n_genres=int(cfgj.get("n_genres", n_genres)),
                 hidden=int(cfgj.get("hidden", int(args.style_judge_hidden))),
                 emb_dim=int(cfgj.get("emb_dim", int(args.style_judge_emb_dim))),
+                n_sources=int(cfgj.get("n_sources", 0)),
             ).to(device)
             style_judge.load_state_dict(payload["model"], strict=True)
             style_judge = freeze_judge(style_judge)
@@ -738,6 +766,8 @@ def main() -> None:
                 train_idx=train_idx,
                 val_idx=val_idx,
                 n_genres=int(n_genres),
+                source_idx=source_idx_all,
+                n_sources=int(n_sources),
                 device=device,
                 epochs=int(args.style_judge_epochs),
                 lr=float(args.style_judge_lr),
@@ -746,6 +776,8 @@ def main() -> None:
                 hidden=int(args.style_judge_hidden),
                 emb_dim=int(args.style_judge_emb_dim),
                 seed=int(args.seed),
+                source_adv_weight=float(args.style_judge_source_adv_weight),
+                source_grl_lambda=float(args.style_judge_source_grl_lambda),
             )
             style_judge = freeze_judge(style_judge)
             style_judge_info.update(
@@ -753,6 +785,9 @@ def main() -> None:
                     "best_val_acc": float(fit_res.best_val_acc),
                     "last_val_acc": float(fit_res.last_val_acc),
                     "train_loss": float(fit_res.train_loss),
+                    "best_source_val_acc": float(fit_res.best_source_val_acc),
+                    "last_source_val_acc": float(fit_res.last_source_val_acc),
+                    "source_train_loss": float(fit_res.source_train_loss),
                 }
             )
             torch.save(
@@ -763,6 +798,7 @@ def main() -> None:
                         "n_genres": int(n_genres),
                         "hidden": int(args.style_judge_hidden),
                         "emb_dim": int(args.style_judge_emb_dim),
+                        "n_sources": int(n_sources),
                     },
                     "metrics": dict(style_judge_info),
                 },
@@ -779,10 +815,67 @@ def main() -> None:
     state["codec_style_judge"] = style_judge_info
     _save_json(state, state_path)
 
+    lab1_style_diag = _style_bank_diagnostics(z_style_train, genre_train, n_genres=n_genres)
+    _save_json({"metrics": lab1_style_diag}, out_dir / "lab1_style_bank_diagnostics.json")
+
+    cond_source = str(args.style_cond_source).strip().lower()
+    if cond_source == "lab1_zstyle":
+        style_centroid_bank = build_style_centroid_bank(z_style_train, genre_train, n_genres=n_genres).to(device)
+        style_exemplar_bank = build_style_exemplar_bank(z_style_train, genre_train, n_genres=n_genres)
+        style_bank_diag = lab1_style_diag
+    elif cond_source == "codec_judge_embed":
+        if style_judge is None:
+            raise RuntimeError("style_cond_source=codec_judge_embed requires --style-judge-mode codec_judge")
+        style_centroid_bank, style_exemplar_bank, style_bank_diag = _build_style_bank_from_codec_judge(
+            style_judge=style_judge,
+            q_emb=q_train,
+            genre_idx=genre_train,
+            n_genres=n_genres,
+            device=device,
+            batch_size=max(32, int(args.batch_size) * 2),
+        )
+    else:
+        rng_cond = np.random.default_rng(int(args.seed) + 913)
+        dim = int(args.style_judge_emb_dim) if style_judge is not None else int(arrays["z_style"].shape[1])
+        cond = rng_cond.standard_normal((int(n_genres), dim), dtype=np.float32)
+        cond = cond / (np.linalg.norm(cond, axis=1, keepdims=True) + 1e-8)
+        style_centroid_bank = torch.from_numpy(cond).to(device)
+        style_exemplar_bank = None
+        z_fake = np.repeat(cond, repeats=8, axis=0)
+        y_fake = np.repeat(np.arange(int(n_genres), dtype=np.int64), repeats=8, axis=0)
+        style_bank_diag = _style_bank_diagnostics(z_fake, y_fake, n_genres=n_genres)
+
+    style_bank_pass = {
+        "centroid_cos": bool(style_bank_diag["offdiag_centroid_cos_mean"] <= float(args.style_bank_max_centroid_cos)),
+        "nearest_centroid_acc": bool(style_bank_diag["nearest_centroid_acc"] >= float(args.style_bank_min_nearest_centroid_acc)),
+    }
+    style_bank_pass["all"] = bool(all(style_bank_pass.values()))
+    style_bank_out = {
+        "source": cond_source,
+        "metrics": style_bank_diag,
+        "thresholds": {
+            "max_centroid_cos": float(args.style_bank_max_centroid_cos),
+            "min_nearest_centroid_acc": float(args.style_bank_min_nearest_centroid_acc),
+        },
+        "passes": style_bank_pass,
+    }
+    _save_json(style_bank_out, out_dir / "style_bank_diagnostics.json")
+    state["style_bank_diagnostics"] = style_bank_out
+    _save_json(state, state_path)
+    print(
+        "[style-bank]"
+        f" source={cond_source}"
+        f" centroid_cos={style_bank_diag['offdiag_centroid_cos_mean']:.4f}"
+        f" nc_acc={style_bank_diag['nearest_centroid_acc']:.4f}"
+        f" pass={style_bank_pass['all']}"
+    )
+    if bool(args.fail_on_style_bank_collapse) and not bool(style_bank_pass["all"]):
+        raise RuntimeError("Style bank collapsed; aborting before training.")
+
     gen = CodecLatentTranslator(
         in_channels=int(cache_meta.codec_channels),
         z_content_dim=int(arrays["z_content"].shape[1]),
-        z_style_dim=int(arrays["z_style"].shape[1]),
+        z_style_dim=int(style_centroid_bank.shape[1]),
         hidden_channels=int(args.translator_hidden_channels),
         n_blocks=int(args.translator_blocks),
         noise_dim=int(args.translator_noise_dim),
@@ -828,6 +921,12 @@ def main() -> None:
     if not args.skip_stage1 and not bool(state.get("stage1_done", False)):
         state["current_stage"] = "stage1"
         _save_json(state, state_path)
+        stage1_style_mode = "lab1_cos"
+        if (
+            style_judge is not None
+            and str(args.style_cond_source).strip().lower() == "codec_judge_embed"
+        ):
+            stage1_style_mode = "codec_judge_ce"
         cfg1 = CodecStageTrainConfig(
             stage_name="stage1",
             epochs=int(args.stage1_epochs),
@@ -847,7 +946,8 @@ def main() -> None:
             g_grad_clip_norm=float(args.g_grad_clip_norm),
             d_grad_clip_norm=float(args.d_grad_clip_norm),
             weights=stage1_weights,
-            style_loss_mode="lab1_cos",
+            style_loss_mode=stage1_style_mode,
+            style_embed_align_weight=float(args.stage1_style_embed_align_weight),
         )
         hist = train_codec_stage(
             stage_cfg=cfg1,
@@ -902,6 +1002,7 @@ def main() -> None:
             style_push_margin=float(args.style_push_margin),
             delta_budget=float(args.stage2_delta_budget),
             style_loss_mode=str(args.style_loss_mode) if style_judge is not None else "lab1_cos",
+            style_embed_align_weight=float(args.stage2_style_embed_align_weight),
         )
         hist = train_codec_stage(
             stage_cfg=cfg2,
@@ -965,6 +1066,7 @@ def main() -> None:
             style_push_margin=float(args.style_push_margin),
             delta_budget=float(args.stage3_delta_budget),
             style_loss_mode=str(args.style_loss_mode) if style_judge is not None else "lab1_cos",
+            style_embed_align_weight=float(args.stage3_style_embed_align_weight),
         )
         hist = train_codec_stage(
             stage_cfg=cfg3,

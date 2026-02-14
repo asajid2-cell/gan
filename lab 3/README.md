@@ -97,6 +97,55 @@ cd "lab 3"
 python run_lab3_codec.py --smoke
 ```
 
+## Strong Schema (Unpaired-Validity Runs)
+
+If your "genre" labels are coupled to dataset source (common in this project), the model and/or judge can learn
+source fingerprints instead of transferable style. The strongest fix you can do *without new data* is to:
+
+- remap labels into multi-source buckets (`--genre-schema binary_acoustic_beats`)
+- balance sources within each bucket (`--balance-sources-within-genre`)
+- require each bucket to have >=2 sources (`--require-min-sources-per-genre 2`)
+- optionally filter to music-only (`--require-is-music`)
+
+Helpers (recommended):
+
+```powershell
+# quick sanity run (cache + judge + style bank + tiny training)
+./scripts/run_codec_strong_schema_smoke.ps1
+
+# full strong-schema run
+./scripts/run_codec_strong_schema_full.ps1
+
+# audit the latest run for source leakage
+./scripts/run_codec_audit_latest.ps1
+```
+
+## Auto-Genre (Unpaired Labeling)
+
+If you want "genres" that are not just dataset-source buckets, you need labels derived from audio content.
+Two unpaired options are provided:
+
+1. CLAP zero-shot prompts (semantic, external model):
+
+```powershell
+cd "lab 3"
+python run_lab3_auto_genre.py --out-csv "Z:/DataSets/_lab1_manifests/auto_genre_4way.csv" --labels hiphop lofi classical electronic
+```
+
+End-to-end helper (CLAP label + train + audit):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/run_codec_clap_labels_full.ps1
+```
+
+2. Lab2-style clustering (internal, no text model):
+Clusters `target160 = [z_style, descriptor32]` into `K` style buckets and writes `genre=cluster_i`.
+
+```powershell
+cd "lab 3"
+python run_lab3_auto_genre_lab2cluster.py --out-csv "Z:/DataSets/_lab1_manifests/auto_cluster_k4.csv" --n-clusters 4
+```
+
 Recommended fresh 3-run sequence:
 
 ```powershell

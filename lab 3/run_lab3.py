@@ -18,12 +18,16 @@ from src.lab3_bridge import FrozenLab1Encoder, denormalize_log_mel
 from src.lab3_data import (
     DEFAULT_MANIFESTS,
     CachedSynthesisDataset,
+    apply_genre_schema,
     assign_genres,
     build_latent_cache,
     genre_count_table,
+    genre_num_sources,
+    genre_source_table,
     load_cache,
     load_manifests,
     materialize_genre_samples,
+    materialize_genre_samples_balanced_sources,
     save_cache,
     stratified_group_split_indices,
     stratified_split_indices,
@@ -353,6 +357,10 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--manifests-root", type=Path, default=Path("Z:/DataSets/_lab1_manifests"))
     p.add_argument("--manifest-files", nargs="*", default=DEFAULT_MANIFESTS)
     p.add_argument("--per-genre-samples", type=int, default=800)
+    p.add_argument("--genre-schema", choices=["default4", "binary_acoustic_beats"], default="default4")
+    p.add_argument("--require-min-sources-per-genre", type=int, default=1)
+    p.add_argument("--balance-sources-within-genre", action=argparse.BooleanOptionalAction, default=False)
+    p.add_argument("--require-is-music", action=argparse.BooleanOptionalAction, default=False)
     p.add_argument("--chunks-per-track", type=int, default=4)
     p.add_argument("--chunk-sampling", choices=["uniform", "random"], default="uniform")
     p.add_argument("--min-start-sec", type=float, default=0.0)
@@ -733,13 +741,36 @@ def main() -> None:
         else:
             print("[lab3] materializing samples from manifests...")
             raw_df = load_manifests(args.manifests_root, args.manifest_files)
-            assigned_df = assign_genres(raw_df)
+            assigned_df = apply_genre_schema(assign_genres(raw_df), schema=str(args.genre_schema))
             assigned_counts = genre_count_table(assigned_df)
-            samples_df = materialize_genre_samples(
-                assigned_df,
-                per_genre_samples=args.per_genre_samples,
-                seed=args.seed,
-            )
+            if bool(args.balance_sources_within_genre):
+                samples_df = materialize_genre_samples_balanced_sources(
+                    assigned_df=assigned_df,
+                    per_genre_samples=int(args.per_genre_samples),
+                    seed=int(args.seed),
+                    drop_unassigned=True,
+                    require_existing_paths=True,
+                    require_is_music=bool(args.require_is_music),
+                )
+            else:
+                samples_df = materialize_genre_samples(
+                    assigned_df=assigned_df,
+                    per_genre_samples=int(args.per_genre_samples),
+                    seed=int(args.seed),
+                    drop_unassigned=True,
+                    require_existing_paths=True,
+                    require_is_music=bool(args.require_is_music),
+                )
+            g_sources = genre_num_sources(samples_df)
+            genre_source_table(samples_df).to_csv(out_dir / "ingestion_genre_source_table.csv", index=False)
+            min_sources = int(args.require_min_sources_per_genre)
+            if min_sources > 1:
+                bad = {g: n for g, n in g_sources.items() if int(n) < min_sources}
+                if bad:
+                    raise RuntimeError(
+                        f"Genres with < {min_sources} sources: {bad}. "
+                        f"See {out_dir / 'ingestion_genre_source_table.csv'} or use --genre-schema binary_acoustic_beats / --balance-sources-within-genre."
+                    )
             samples_df.to_csv(out_dir / "genre_samples.csv", index=False)
             sampled_counts = genre_count_table(samples_df)
             state["assigned_genre_counts"] = assigned_counts

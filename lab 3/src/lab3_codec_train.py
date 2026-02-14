@@ -48,6 +48,7 @@ class CodecStageTrainConfig:
     style_push_margin: float = 0.30
     delta_budget: float = 0.12
     style_loss_mode: str = "lab1_cos"  # lab1_cos | codec_judge_ce
+    style_embed_align_weight: float = 0.0
     wave_mrstft_resolutions: Tuple[Tuple[int, int, int], ...] = (
         (512, 128, 512),
         (1024, 256, 1024),
@@ -334,6 +335,7 @@ def train_codec_stage(
         m_lat_cont = 0.0
         m_content = 0.0
         m_style = 0.0
+        m_style_embed = 0.0
         m_mrstft = 0.0
         m_adv = 0.0
         m_fm = 0.0
@@ -374,7 +376,11 @@ def train_codec_stage(
                 device=device,
                 exemplar_noise_std=float(stage_cfg.exemplar_noise_std),
             )
-            if str(stage_cfg.stage_name) == "stage1":
+            if (
+                str(stage_cfg.stage_name) == "stage1"
+                and str(stage_cfg.style_loss_mode).strip().lower() == "lab1_cos"
+                and int(z_style_tgt.shape[1]) == int(zs_src.shape[1])
+            ):
                 z_style_tgt = zs_src
 
             noise = generator.sample_noise(batch_size=int(q_src.shape[0]), device=device)
@@ -450,10 +456,19 @@ def train_codec_stage(
             zc_hat = F.normalize(out_hat["z_content"], dim=-1)
             loss_content = (1.0 - F.cosine_similarity(zc_hat, zc_src, dim=-1)).mean()
             loss_style = torch.tensor(0.0, device=device)
+            loss_style_embed = torch.tensor(0.0, device=device)
             loss_style_push = torch.tensor(0.0, device=device)
             if str(stage_cfg.style_loss_mode).strip().lower() == "codec_judge_ce" and style_judge is not None:
-                logits = style_judge(q_hat)
+                emb_hat = style_judge.embed(q_hat)
+                logits = style_judge.head(emb_hat)
                 loss_style = F.cross_entropy(logits, tgt_genre_idx)
+                if (
+                    float(stage_cfg.style_embed_align_weight) > 0.0
+                    and int(z_style_tgt.shape[1]) == int(emb_hat.shape[1])
+                ):
+                    z_ref = F.normalize(z_style_tgt, dim=-1)
+                    loss_style_embed = (1.0 - F.cosine_similarity(emb_hat, z_ref, dim=-1)).mean()
+                    loss_style = loss_style + float(stage_cfg.style_embed_align_weight) * loss_style_embed
                 if str(stage_cfg.stage_name) != "stage1":
                     probs = torch.softmax(logits, dim=1)
                     p_src = probs.gather(1, src_genre_idx.view(-1, 1)).squeeze(1)
@@ -511,6 +526,7 @@ def train_codec_stage(
             m_lat_cont += float(loss_lat_cont.detach().cpu())
             m_content += float(loss_content.detach().cpu())
             m_style += float(loss_style.detach().cpu())
+            m_style_embed += float(loss_style_embed.detach().cpu())
             m_mrstft += float(loss_mrstft.detach().cpu())
             m_adv += float(loss_adv.detach().cpu())
             m_fm += float(loss_fm.detach().cpu())
@@ -530,6 +546,7 @@ def train_codec_stage(
             "loss_continuity": m_lat_cont / n,
             "loss_content": m_content / n,
             "loss_style": m_style / n,
+            "loss_style_embed": m_style_embed / n,
             "loss_style_push": m_style_push / n,
             "loss_delta_budget": m_delta_budget / n,
             "loss_mrstft": m_mrstft / n,

@@ -64,6 +64,24 @@ DEFAULT_GENRE_RULES = [
     ),
 ]
 
+GENRE_SCHEMAS = {
+    # Original Lab3 labeling.
+    "default4": {
+        "remap": None,
+    },
+    # Decouple "style" from single-source proxies by merging into 2 multi-source buckets.
+    # acoustic: phase1_pdmx + cc0_audio_clean (both baroque_classical and cc0_other)
+    # beats: xtc_audio_clean + hh_lfbb_audio_clean
+    "binary_acoustic_beats": {
+        "remap": {
+            "baroque_classical": "acoustic",
+            "cc0_other": "acoustic",
+            "hiphop_xtc": "beats",
+            "lofi_hh_lfbb": "beats",
+        },
+    },
+}
+
 
 def _read_manifest(path: Path) -> pd.DataFrame:
     df = pd.read_csv(path)
@@ -71,7 +89,10 @@ def _read_manifest(path: Path) -> pd.DataFrame:
         raise ValueError(f"Manifest missing 'path': {path}")
     if "source" not in df.columns:
         df["source"] = path.stem
-    keep = [c for c in ["source", "path", "ext", "size_bytes", "is_music"] if c in df.columns]
+    # Keep core columns plus any genre-related columns if present (for auto-labeling workflows).
+    keep_core = ["source", "path", "ext", "size_bytes", "is_music"]
+    keep_genre = [c for c in df.columns if str(c).startswith("genre")]
+    keep = [c for c in (keep_core + keep_genre) if c in df.columns]
     out = df[keep].copy()
     out["manifest_file"] = path.name
     out["path"] = out["path"].astype(str)
@@ -96,17 +117,67 @@ def load_manifests(manifests_root: Path, manifest_files: Optional[Iterable[str]]
 
 def assign_genres(df: pd.DataFrame, rules: Sequence[GenreRule] = DEFAULT_GENRE_RULES) -> pd.DataFrame:
     out = df.copy()
+    # If a manifest already provides a genre column (e.g., auto-labeled), treat it as authoritative.
+    # This avoids leaking source-based fallback labels back into content-labeled workflows.
+    has_manifest_genre = "genre" in out.columns
     genres: List[str] = []
     for _, r in out.iterrows():
         s = str(r["source"])
         p = str(r["path"])
         g = "unassigned"
+        if has_manifest_genre:
+            gv = r.get("genre", None)
+            if gv is None:
+                gv = ""
+            gv = str(gv).strip()
+            if gv and gv.lower() not in {"nan", "none"}:
+                g = gv
+            genres.append(g)
+            continue
         for rule in rules:
             if rule.matches(s, p):
                 g = rule.genre
                 break
         genres.append(g)
     out["genre"] = genres
+    return out
+
+
+def apply_genre_schema(assigned_df: pd.DataFrame, schema: str = "default4") -> pd.DataFrame:
+    """
+    Remap assigned_df['genre'] into a schema that better supports unpaired transfer.
+    """
+    s = str(schema).strip()
+    if not s or s == "default4":
+        return assigned_df
+    if s not in GENRE_SCHEMAS:
+        raise ValueError(f"Unknown genre schema '{s}'. Available: {sorted(GENRE_SCHEMAS.keys())}")
+    remap = GENRE_SCHEMAS[s].get("remap")
+    if not remap:
+        return assigned_df
+    out = assigned_df.copy()
+    out["genre"] = out["genre"].astype(str).map(lambda g: str(remap.get(str(g), str(g))))
+    return out
+
+
+def genre_source_table(df: pd.DataFrame) -> pd.DataFrame:
+    if "genre" not in df.columns or "source" not in df.columns:
+        return pd.DataFrame(columns=["genre", "source", "count"])
+    return (
+        df.groupby(["genre", "source"], as_index=False)
+        .size()
+        .rename(columns={"size": "count"})
+        .sort_values(["genre", "source"], kind="stable")
+        .reset_index(drop=True)
+    )
+
+
+def genre_num_sources(df: pd.DataFrame) -> Dict[str, int]:
+    if "genre" not in df.columns or "source" not in df.columns:
+        return {}
+    out: Dict[str, int] = {}
+    for g, gdf in df.groupby("genre", sort=True):
+        out[str(g)] = int(gdf["source"].astype(str).nunique())
     return out
 
 
@@ -123,6 +194,7 @@ def materialize_genre_samples(
     seed: int = 328,
     drop_unassigned: bool = True,
     require_existing_paths: bool = True,
+    require_is_music: bool = False,
 ) -> pd.DataFrame:
     if "genre" not in assigned_df.columns:
         raise ValueError("Expected 'genre' column.")
@@ -131,6 +203,11 @@ def materialize_genre_samples(
         df = df[df["genre"] != "unassigned"].copy()
     if require_existing_paths:
         df = df[df["path"].map(_path_exists)].copy()
+    if bool(require_is_music) and "is_music" in df.columns:
+        # Manifests can have missing is_music values (e.g., older sources without audit).
+        # If it's missing, treat as "unknown" and keep it; only drop explicit 0s.
+        is_music = pd.to_numeric(df["is_music"], errors="coerce").fillna(1).astype(int)
+        df = df[is_music == 1].copy()
 
     out_parts: List[pd.DataFrame] = []
     for genre, gdf in df.groupby("genre", sort=True):
@@ -142,6 +219,71 @@ def materialize_genre_samples(
     if not out_parts:
         raise ValueError("No samples materialized from assigned genres.")
     out = pd.concat(out_parts, ignore_index=True).reset_index(drop=True)
+    out["sample_id"] = out.index.astype(int)
+    return out
+
+
+def materialize_genre_samples_balanced_sources(
+    assigned_df: pd.DataFrame,
+    per_genre_samples: int,
+    seed: int = 328,
+    drop_unassigned: bool = True,
+    require_existing_paths: bool = True,
+    require_is_music: bool = False,
+) -> pd.DataFrame:
+    """
+    Sample per-genre while balancing across sources within each genre.
+    This reduces source/dataset fingerprint dominance in training.
+    """
+    if "genre" not in assigned_df.columns:
+        raise ValueError("Expected 'genre' column.")
+    if "source" not in assigned_df.columns:
+        raise ValueError("Expected 'source' column.")
+
+    df = assigned_df.copy()
+    if drop_unassigned:
+        df = df[df["genre"] != "unassigned"].copy()
+    if require_existing_paths:
+        df = df[df["path"].map(_path_exists)].copy()
+    if bool(require_is_music) and "is_music" in df.columns:
+        # Manifests can have missing is_music values (e.g., older sources without audit).
+        # If it's missing, treat as "unknown" and keep it; only drop explicit 0s.
+        is_music = pd.to_numeric(df["is_music"], errors="coerce").fillna(1).astype(int)
+        df = df[is_music == 1].copy()
+
+    rng = np.random.default_rng(int(seed))
+    out_parts: List[pd.DataFrame] = []
+    for genre, gdf in df.groupby("genre", sort=True):
+        if len(gdf) == 0:
+            continue
+        sources = sorted(gdf["source"].astype(str).unique().tolist())
+        if not sources:
+            continue
+        per_src = max(1, int(per_genre_samples) // max(1, len(sources)))
+        picked: List[pd.DataFrame] = []
+        for s in sources:
+            sdf = gdf[gdf["source"].astype(str) == str(s)]
+            if len(sdf) == 0:
+                continue
+            n = min(int(per_src), len(sdf))
+            if n > 0:
+                # Keep original indices so we can top-up without duplicating rows.
+                picked.append(sdf.sample(n=n, random_state=int(rng.integers(0, 2**31 - 1))))
+        merged = pd.concat(picked, axis=0) if picked else gdf.head(0).copy()
+        # Top up to per_genre_samples if possible.
+        if len(merged) < int(per_genre_samples):
+            need = int(per_genre_samples) - int(len(merged))
+            rem = gdf.drop(index=merged.index, errors="ignore")
+            if len(rem) > 0:
+                extra = rem.sample(n=min(need, len(rem)), random_state=int(rng.integers(0, 2**31 - 1)))
+                merged = pd.concat([merged, extra], axis=0)
+        if len(merged) > int(per_genre_samples):
+            merged = merged.sample(n=int(per_genre_samples), random_state=int(rng.integers(0, 2**31 - 1)))
+        out_parts.append(merged)
+
+    if not out_parts:
+        raise ValueError("No samples materialized from assigned genres.")
+    out = pd.concat(out_parts, axis=0).reset_index(drop=True)
     out["sample_id"] = out.index.astype(int)
     return out
 
