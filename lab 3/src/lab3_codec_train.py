@@ -11,7 +11,7 @@ import torchaudio
 from torch.utils.data import DataLoader
 
 from .lab3_codec_bridge import FrozenEncodec
-from .lab3_codec_judge import CodecStyleJudge
+from .lab3_codec_judge import CodecStyleJudge, Lab1StyleProbe, MERTStyleProbe
 from .lab3_codec_models import (
     CodecLatentTranslator,
     CodecTrainWeights,
@@ -279,6 +279,8 @@ def train_codec_stage(
     out_ckpt_dir: Path,
     device: torch.device,
     resume: bool = False,
+    lab1_probe: Optional[Lab1StyleProbe] = None,
+    mert_probe: Optional[MERTStyleProbe] = None,
 ) -> List[Dict]:
     generator.train()
     discriminator.train()
@@ -287,6 +289,14 @@ def train_codec_stage(
     if style_judge is not None:
         style_judge.eval()
         for p in style_judge.parameters():
+            p.requires_grad = False
+    if lab1_probe is not None:
+        lab1_probe.eval()
+        for p in lab1_probe.parameters():
+            p.requires_grad = False
+    if mert_probe is not None:
+        mert_probe.eval()
+        for p in mert_probe.parameters():
             p.requires_grad = False
 
     opt_g = torch.optim.AdamW(
@@ -376,12 +386,20 @@ def train_codec_stage(
                 device=device,
                 exemplar_noise_std=float(stage_cfg.exemplar_noise_std),
             )
-            if (
-                str(stage_cfg.stage_name) == "stage1"
-                and str(stage_cfg.style_loss_mode).strip().lower() == "lab1_cos"
-                and int(z_style_tgt.shape[1]) == int(zs_src.shape[1])
-            ):
-                z_style_tgt = zs_src
+            if str(stage_cfg.stage_name) == "stage1":
+                if (
+                    str(stage_cfg.style_loss_mode).strip().lower() == "lab1_cos"
+                    and int(z_style_tgt.shape[1]) == int(zs_src.shape[1])
+                ):
+                    z_style_tgt = zs_src
+                elif str(stage_cfg.style_loss_mode).strip().lower() == "lab1_probe_ce" and lab1_probe is not None:
+                    with torch.no_grad():
+                        z_style_tgt = lab1_probe.embed(zs_src).detach()
+                elif str(stage_cfg.style_loss_mode).strip().lower() == "mert_probe_ce" and mert_probe is not None:
+                    mf = batch.get("mert_feat")
+                    if mf is not None:
+                        with torch.no_grad():
+                            z_style_tgt = mert_probe.embed(mf.to(device).float()).detach()
 
             noise = generator.sample_noise(batch_size=int(q_src.shape[0]), device=device)
             q_hat = generator(
@@ -458,7 +476,8 @@ def train_codec_stage(
             loss_style = torch.tensor(0.0, device=device)
             loss_style_embed = torch.tensor(0.0, device=device)
             loss_style_push = torch.tensor(0.0, device=device)
-            if str(stage_cfg.style_loss_mode).strip().lower() == "codec_judge_ce" and style_judge is not None:
+            style_mode = str(stage_cfg.style_loss_mode).strip().lower()
+            if style_mode == "codec_judge_ce" and style_judge is not None:
                 emb_hat = style_judge.embed(q_hat)
                 logits = style_judge.head(emb_hat)
                 loss_style = F.cross_entropy(logits, tgt_genre_idx)
@@ -473,6 +492,56 @@ def train_codec_stage(
                     probs = torch.softmax(logits, dim=1)
                     p_src = probs.gather(1, src_genre_idx.view(-1, 1)).squeeze(1)
                     loss_style_push = F.relu(p_src - float(stage_cfg.style_push_margin)).mean()
+            elif style_mode == "lab1_probe_ce" and lab1_probe is not None:
+                # Route through Lab1 z_style → probe for CE loss (probe has well-separated embeddings)
+                zs_hat = F.normalize(out_hat["z_style"], dim=-1)
+                emb_hat = lab1_probe.embed(zs_hat)
+                logits = lab1_probe.head(emb_hat)
+                loss_style = F.cross_entropy(logits, tgt_genre_idx)
+                if (
+                    float(stage_cfg.style_embed_align_weight) > 0.0
+                    and int(z_style_tgt.shape[1]) == int(emb_hat.shape[1])
+                ):
+                    z_ref = F.normalize(z_style_tgt, dim=-1)
+                    loss_style_embed = (1.0 - F.cosine_similarity(emb_hat, z_ref, dim=-1)).mean()
+                    loss_style = loss_style + float(stage_cfg.style_embed_align_weight) * loss_style_embed
+                if str(stage_cfg.stage_name) != "stage1":
+                    probs = torch.softmax(logits, dim=1)
+                    p_src = probs.gather(1, src_genre_idx.view(-1, 1)).squeeze(1)
+                    loss_style_push = F.relu(p_src - float(stage_cfg.style_push_margin)).mean()
+            elif style_mode == "mert_probe_ce" and mert_probe is not None:
+                # MERT probe: use cached mert_feat from batch → frozen probe → CE loss
+                mf = batch.get("mert_feat")
+                if mf is not None:
+                    mf = mf.to(device).float()
+                    # We need mert_feat of the *translated* audio, but we only have source mert_feat.
+                    # Use the codec judge on q_hat for the actual gradient signal (same as codec_judge_ce),
+                    # but also use the MERT probe embeddings as conditioning.
+                    # For style loss: re-encode q_hat through codec→waveform→MERT is too expensive.
+                    # Instead, use the frozen codec judge on q_hat for CE loss (it's always trained),
+                    # and let the MERT probe provide better-separated FiLM conditioning.
+                    pass  # fall through to codec_judge_ce path for loss if judge available
+
+                # Use codec judge for the actual differentiable loss on q_hat
+                if style_judge is not None:
+                    emb_hat = style_judge.embed(q_hat)
+                    logits = style_judge.head(emb_hat)
+                    loss_style = F.cross_entropy(logits, tgt_genre_idx)
+                    if (
+                        float(stage_cfg.style_embed_align_weight) > 0.0
+                        and int(z_style_tgt.shape[1]) == int(emb_hat.shape[1])
+                    ):
+                        z_ref = F.normalize(z_style_tgt, dim=-1)
+                        loss_style_embed = (1.0 - F.cosine_similarity(emb_hat, z_ref, dim=-1)).mean()
+                        loss_style = loss_style + float(stage_cfg.style_embed_align_weight) * loss_style_embed
+                    if str(stage_cfg.stage_name) != "stage1":
+                        probs = torch.softmax(logits, dim=1)
+                        p_src = probs.gather(1, src_genre_idx.view(-1, 1)).squeeze(1)
+                        loss_style_push = F.relu(p_src - float(stage_cfg.style_push_margin)).mean()
+                else:
+                    # Fallback: cosine loss on Lab1 z_style
+                    zs_hat = F.normalize(out_hat["z_style"], dim=-1)
+                    loss_style = (1.0 - F.cosine_similarity(zs_hat, z_style_tgt, dim=-1)).mean()
             else:
                 zs_hat = F.normalize(out_hat["z_style"], dim=-1)
                 loss_style = (1.0 - F.cosine_similarity(zs_hat, z_style_tgt, dim=-1)).mean()

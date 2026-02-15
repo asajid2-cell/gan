@@ -14,6 +14,7 @@ from torch.utils.data import Dataset
 
 from .lab3_bridge import extract_log_mel, fix_log_mel_frames
 from .lab3_codec_bridge import FrozenEncodec
+from .lab3_mert_bridge import FrozenMERT
 from .lab3_data import (
     DEFAULT_MANIFESTS,
     assign_genres,
@@ -83,6 +84,7 @@ def build_codec_cache(
     max_start_sec: Optional[float] = None,
     seed: int = 328,
     progress_every: int = 100,
+    mert: Optional[FrozenMERT] = None,
 ) -> Tuple[pd.DataFrame, Dict[str, np.ndarray], Dict[str, int], CodecCacheMeta]:
     cache_dir = Path(cache_dir)
     cache_dir.mkdir(parents=True, exist_ok=True)
@@ -97,6 +99,7 @@ def build_codec_cache(
     codes_list: List[np.ndarray] = []
     zc_list: List[np.ndarray] = []
     zs_list: List[np.ndarray] = []
+    mert_list: List[np.ndarray] = []
     gidx_list: List[int] = []
 
     for i, rec in samples_df.reset_index(drop=True).iterrows():
@@ -127,6 +130,15 @@ def build_codec_cache(
                 log_mel = extract_log_mel(wav_lab1, sr=int(lab1_encoder.cfg.sample_rate))
                 log_mel = fix_log_mel_frames(log_mel, n_frames=int(lab1_n_frames))
                 lat = lab1_encoder.infer_log_mel(log_mel)
+
+                mert_feat: Optional[np.ndarray] = None
+                if mert is not None:
+                    wav_mert = codec.resample_audio(
+                        wav_codec,
+                        sr_from=int(codec.cfg.sample_rate),
+                        sr_to=int(mert.cfg.sample_rate),
+                    )
+                    mert_feat = mert.extract_features(wav_mert)
             except Exception:
                 continue
 
@@ -149,6 +161,8 @@ def build_codec_cache(
             codes_list.append(codes)
             zc_list.append(lat["z_content"].astype(np.float32))
             zs_list.append(lat["z_style"].astype(np.float32))
+            if mert_feat is not None:
+                mert_list.append(mert_feat)
             gidx_list.append(gidx)
 
         if progress_every > 0 and (i + 1) % int(progress_every) == 0:
@@ -165,6 +179,8 @@ def build_codec_cache(
         "z_style": np.stack(zs_list).astype(np.float32),
         "genre_idx": np.asarray(gidx_list, dtype=np.int64),
     }
+    if mert_list:
+        arrays["mert_feat"] = np.stack(mert_list).astype(np.float32)
     meta = CodecCacheMeta(
         codec_model_id=str(codec.cfg.model_id),
         codec_sample_rate=int(codec.cfg.sample_rate),
@@ -187,14 +203,16 @@ def save_codec_cache(
     cache_dir = Path(cache_dir)
     cache_dir.mkdir(parents=True, exist_ok=True)
     index_df.to_csv(cache_dir / "codec_cache_index.csv", index=False)
-    np.savez_compressed(
-        cache_dir / "codec_cache_arrays.npz",
-        q_emb=arrays["q_emb"],
-        codes=arrays["codes"],
-        z_content=arrays["z_content"],
-        z_style=arrays["z_style"],
-        genre_idx=arrays["genre_idx"],
-    )
+    save_kw = {
+        "q_emb": arrays["q_emb"],
+        "codes": arrays["codes"],
+        "z_content": arrays["z_content"],
+        "z_style": arrays["z_style"],
+        "genre_idx": arrays["genre_idx"],
+    }
+    if "mert_feat" in arrays:
+        save_kw["mert_feat"] = arrays["mert_feat"]
+    np.savez_compressed(cache_dir / "codec_cache_arrays.npz", **save_kw)
     with (cache_dir / "codec_genre_to_idx.json").open("w", encoding="utf-8") as f:
         json.dump({str(k): int(v) for k, v in genre_to_idx.items()}, f, indent=2)
     with (cache_dir / "codec_meta.json").open("w", encoding="utf-8") as f:
@@ -218,6 +236,8 @@ def load_codec_cache(cache_dir: Path) -> Tuple[pd.DataFrame, Dict[str, np.ndarra
         "z_style": z["z_style"].astype(np.float32),
         "genre_idx": z["genre_idx"].astype(np.int64),
     }
+    if "mert_feat" in z:
+        arrays["mert_feat"] = z["mert_feat"].astype(np.float32)
     with gmap_path.open("r", encoding="utf-8") as f:
         genre_to_idx = json.load(f)
     genre_to_idx = {str(k): int(v) for k, v in genre_to_idx.items()}
@@ -242,18 +262,22 @@ class CachedCodecDataset(Dataset):
         self.z_content = arrays["z_content"][indices]
         self.z_style = arrays["z_style"][indices]
         self.genre_idx = arrays["genre_idx"][indices]
+        self.mert_feat = arrays["mert_feat"][indices] if "mert_feat" in arrays else None
 
     def __len__(self) -> int:
         return int(len(self.genre_idx))
 
     def __getitem__(self, i: int) -> Dict[str, torch.Tensor]:
-        return {
+        out = {
             "q_emb": torch.from_numpy(self.q_emb[i]),
             "codes": torch.from_numpy(self.codes[i]).long(),
             "z_content": torch.from_numpy(self.z_content[i]),
             "z_style": torch.from_numpy(self.z_style[i]),
             "genre_idx": torch.tensor(int(self.genre_idx[i]), dtype=torch.long),
         }
+        if self.mert_feat is not None:
+            out["mert_feat"] = torch.from_numpy(self.mert_feat[i])
+        return out
 
 
 def build_genre_exemplar_index(genre_idx: np.ndarray) -> Dict[int, np.ndarray]:

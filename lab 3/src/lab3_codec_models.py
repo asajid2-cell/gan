@@ -61,6 +61,7 @@ class CodecLatentTranslator(nn.Module):
         n_blocks: int = 10,
         noise_dim: int = 32,
         residual_scale: float = 0.5,
+        direct_output: bool = False,
     ):
         super().__init__()
         self.in_channels = int(in_channels)
@@ -68,6 +69,7 @@ class CodecLatentTranslator(nn.Module):
         self.z_style_dim = int(z_style_dim)
         self.noise_dim = int(noise_dim)
         self.residual_scale = float(residual_scale)
+        self.direct_output = bool(direct_output)
         cond_dim = self.z_content_dim + self.z_style_dim + self.noise_dim
 
         self.in_proj = nn.Conv1d(self.in_channels, hidden_channels, kernel_size=3, padding=1)
@@ -111,8 +113,10 @@ class CodecLatentTranslator(nn.Module):
             h = blk(h, cond)
         h = self.out_norm(h)
         h = F.silu(h)
-        delta = torch.tanh(self.out_proj(h))
-        return q_src + self.residual_scale * delta
+        raw = self.out_proj(h)
+        if self.direct_output:
+            return raw
+        return q_src + self.residual_scale * torch.tanh(raw)
 
 
 class WaveDiscBlock(nn.Module):

@@ -165,6 +165,7 @@ def main() -> None:
 
     idx_sub = idx_df.iloc[pick].reset_index(drop=True)
     z_style = arrays["z_style"][pick].astype(np.float64)
+    z_content = arrays["z_content"][pick].astype(np.float64)
     q_emb = arrays["q_emb"][pick].astype(np.float64)
     q_mean = q_emb.mean(axis=2)  # [N, C]
     y_genre = arrays["genre_idx"][pick].astype(np.int64)
@@ -187,6 +188,9 @@ def main() -> None:
     source_from_z = _safe_logreg_train_eval(z_style, y_source, test_size=args.test_size, seed=args.seed)
     genre_from_q = _safe_logreg_train_eval(q_mean, y_genre, test_size=args.test_size, seed=args.seed)
     source_from_q = _safe_logreg_train_eval(q_mean, y_source, test_size=args.test_size, seed=args.seed)
+    # Content integrity: genre/source predictability from z_content (should be LOW for good disentanglement)
+    genre_from_zc = _safe_logreg_train_eval(z_content, y_genre, test_size=args.test_size, seed=args.seed)
+    source_from_zc = _safe_logreg_train_eval(z_content, y_source, test_size=args.test_size, seed=args.seed)
     if q_judge_embed.size > 0:
         genre_from_qe = _safe_logreg_train_eval(q_judge_embed, y_genre, test_size=args.test_size, seed=args.seed)
         source_from_qe = _safe_logreg_train_eval(q_judge_embed, y_source, test_size=args.test_size, seed=args.seed)
@@ -239,6 +243,8 @@ def main() -> None:
         "predictive": {
             "genre_from_z_style": genre_from_z,
             "source_from_z_style": source_from_z,
+            "genre_from_z_content": genre_from_zc,
+            "source_from_z_content": source_from_zc,
             "genre_from_q_mean": genre_from_q,
             "source_from_q_mean": source_from_q,
             "genre_from_q_judge_embed": genre_from_qe,
@@ -247,6 +253,12 @@ def main() -> None:
         "leakage_gap": {
             "q_mean_source_minus_genre": _gap(source_from_q, genre_from_q),
             "q_judge_embed_source_minus_genre": _gap(source_from_qe, genre_from_qe),
+            "z_content_source_minus_genre": _gap(source_from_zc, genre_from_zc),
+        },
+        "content_integrity": {
+            "genre_from_z_content_acc": float(genre_from_zc.get("acc", float("nan"))),
+            "source_from_z_content_acc": float(source_from_zc.get("acc", float("nan"))),
+            "note": "Low genre_from_z_content is good (content should not encode style). High source_from_z_content indicates source fingerprint in content.",
         },
         "source_below_genre_pass": {
             "q_mean": bool(_gap(source_from_q, genre_from_q) <= 0.0) if np.isfinite(_gap(source_from_q, genre_from_q)) else False,

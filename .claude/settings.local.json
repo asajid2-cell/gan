@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python:*)",
+      "Bash(python3:*)",
+      "Bash(\"z:/328/CMPUT328-A2/codexworks/301/414-pl1/.venv_lab1/Scripts/python.exe\":*)",
+      "Bash(ls:*)",
+      "Bash(tasklist:*)",
+      "Bash(PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True python:*)",
+      "Bash(sort:*)"
+    ]
+  }
+}

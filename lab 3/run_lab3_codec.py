@@ -29,7 +29,20 @@ from src.lab3_codec_data import (
     stratified_split_indices,
 )
 from src.lab3_data import apply_genre_schema, genre_num_sources, genre_source_table, materialize_genre_samples_balanced_sources
-from src.lab3_codec_judge import fit_codec_style_judge, freeze_judge, CodecStyleJudge
+from src.lab3_codec_judge import (
+    fit_codec_style_judge,
+    freeze_judge,
+    CodecStyleJudge,
+    Lab1StyleProbe,
+    fit_lab1_style_probe,
+    freeze_probe,
+    MERTStyleProbe,
+    fit_mert_style_probe,
+    freeze_mert_probe,
+    fit_source_removal_projection,
+    apply_source_removal_to_q_emb,
+)
+from src.lab3_mert_bridge import FrozenMERT
 from src.lab3_codec_models import CodecLatentTranslator, CodecTrainWeights, MultiScaleWaveDiscriminator
 from src.lab3_codec_train import (
     CodecStageTrainConfig,
@@ -143,21 +156,40 @@ def _parse_args() -> argparse.Namespace:
 
     p.add_argument(
         "--style-cond-source",
-        choices=["lab1_zstyle", "codec_judge_embed", "random_genre"],
+        choices=["lab1_zstyle", "codec_judge_embed", "lab1_probe_embed", "mert_probe_embed", "random_genre"],
         default="codec_judge_embed",
     )
-    p.add_argument("--style-loss-mode", choices=["lab1_cos", "codec_judge_ce"], default="codec_judge_ce")
+    p.add_argument("--style-loss-mode", choices=["lab1_cos", "codec_judge_ce", "lab1_probe_ce", "mert_probe_ce"], default="codec_judge_ce")
+    p.add_argument("--lab1-probe-epochs", type=int, default=30)
+    p.add_argument("--lab1-probe-hidden", type=int, default=256)
+    p.add_argument("--lab1-probe-emb-dim", type=int, default=128)
+    p.add_argument("--lab1-probe-lr", type=float, default=2e-3)
+    p.add_argument("--lab1-probe-patience", type=int, default=8)
+    p.add_argument("--mert-model-id", type=str, default="m-a-p/MERT-v1-95M")
+    p.add_argument("--mert-layer", type=int, default=-1, help="Which hidden layer to use (-1 = last)")
+    p.add_argument("--mert-probe-epochs", type=int, default=30)
+    p.add_argument("--mert-probe-hidden", type=int, default=256)
+    p.add_argument("--mert-probe-emb-dim", type=int, default=128)
+    p.add_argument("--mert-probe-lr", type=float, default=2e-3)
+    p.add_argument("--mert-probe-patience", type=int, default=8)
     p.add_argument("--style-judge-mode", choices=["lab1_zstyle", "codec_judge"], default="codec_judge")
-    p.add_argument("--style-judge-epochs", type=int, default=6)
+    p.add_argument("--style-judge-epochs", type=int, default=20)
     p.add_argument("--style-judge-lr", type=float, default=2e-3)
     p.add_argument("--style-judge-batch-size", type=int, default=64)
     p.add_argument("--style-judge-hidden", type=int, default=256)
     p.add_argument("--style-judge-emb-dim", type=int, default=128)
     p.add_argument("--style-judge-source-adv-weight", type=float, default=0.30)
     p.add_argument("--style-judge-source-grl-lambda", type=float, default=1.0)
-    p.add_argument("--style-judge-min-val-acc", type=float, default=0.75)
+    p.add_argument("--style-judge-grl-warmup-epochs", type=int, default=5)
+    p.add_argument("--style-judge-patience", type=int, default=0, help="Early stopping patience; 0=disabled")
+    p.add_argument("--style-judge-min-val-acc", type=float, default=0.80)
     p.add_argument("--fail-on-style-judge-weak", action=argparse.BooleanOptionalAction, default=False)
     p.add_argument("--refit-style-judge", action=argparse.BooleanOptionalAction, default=False)
+    p.add_argument("--source-removal-projection", action=argparse.BooleanOptionalAction, default=False)
+    p.add_argument("--source-removal-max-frac", type=float, default=0.40,
+                    help="Max fraction of latent dims to remove for source decontamination")
+    p.add_argument("--source-removal-max-iters", type=int, default=20,
+                    help="Max INLP iterations for source removal")
 
     p.add_argument("--lab1-checkpoint", type=Path, default=_default_lab1_checkpoint())
     p.add_argument("--lab1-n-frames", type=int, default=256)
@@ -172,6 +204,8 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--translator-blocks", type=int, default=10)
     p.add_argument("--translator-noise-dim", type=int, default=32)
     p.add_argument("--translator-residual-scale", type=float, default=0.5)
+    p.add_argument("--translator-direct-output", action="store_true",
+                    help="Remove residual connection — network outputs q_hat directly")
     p.add_argument("--discriminator-scales", type=int, default=3)
 
     p.add_argument("--stage1-epochs", type=int, default=8)
@@ -251,6 +285,8 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--sample-count", type=int, default=24)
     p.add_argument("--sample-export-tag", type=str, default="posttrain_samples")
     p.add_argument("--sample-write-source-audio", action=argparse.BooleanOptionalAction, default=True)
+    p.add_argument("--gate-multi-pass", type=int, default=1,
+                    help="Run translator N times, feeding q_hat back as q_src each pass")
     p.add_argument("--gate-max-eval-samples", type=int, default=256)
     p.add_argument("--gate-min-mps", type=float, default=0.90)
     p.add_argument("--gate-min-style-conf", type=float, default=0.40)
@@ -397,6 +433,54 @@ def _style_bank_diagnostics(z_style: np.ndarray, genre_idx: np.ndarray, n_genres
 
 
 @torch.no_grad()
+def _build_style_bank_from_lab1_probe(
+    probe: Lab1StyleProbe,
+    z_style: np.ndarray,
+    genre_idx: np.ndarray,
+    n_genres: int,
+    device: torch.device,
+    batch_size: int = 256,
+) -> tuple[torch.Tensor, Dict[int, torch.Tensor], Dict[str, float]]:
+    probe.eval()
+    x = torch.from_numpy(z_style.astype(np.float32))
+    out: List[np.ndarray] = []
+    for i in range(0, int(x.shape[0]), int(max(1, batch_size))):
+        xb = x[i : i + int(max(1, batch_size))].to(device)
+        emb = probe.embed(xb).detach().cpu().numpy().astype(np.float32)
+        out.append(emb)
+    emb_all = np.concatenate(out, axis=0) if out else np.zeros((0, probe.emb_dim), dtype=np.float32)
+    emb_all = emb_all / (np.linalg.norm(emb_all, axis=1, keepdims=True) + 1e-8)
+    cent = build_style_centroid_bank(emb_all, genre_idx, n_genres=n_genres).to(device)
+    ex = build_style_exemplar_bank(emb_all, genre_idx, n_genres=n_genres)
+    diag = _style_bank_diagnostics(emb_all, genre_idx, n_genres=n_genres)
+    return cent, ex, diag
+
+
+@torch.no_grad()
+def _build_style_bank_from_mert_probe(
+    probe: MERTStyleProbe,
+    mert_feat: np.ndarray,
+    genre_idx: np.ndarray,
+    n_genres: int,
+    device: torch.device,
+    batch_size: int = 256,
+) -> tuple[torch.Tensor, Dict[int, torch.Tensor], Dict[str, float]]:
+    probe.eval()
+    x = torch.from_numpy(mert_feat.astype(np.float32))
+    out: List[np.ndarray] = []
+    for i in range(0, int(x.shape[0]), int(max(1, batch_size))):
+        xb = x[i : i + int(max(1, batch_size))].to(device)
+        emb = probe.embed(xb).detach().cpu().numpy().astype(np.float32)
+        out.append(emb)
+    emb_all = np.concatenate(out, axis=0) if out else np.zeros((0, probe.emb_dim), dtype=np.float32)
+    emb_all = emb_all / (np.linalg.norm(emb_all, axis=1, keepdims=True) + 1e-8)
+    cent = build_style_centroid_bank(emb_all, genre_idx, n_genres=n_genres).to(device)
+    ex = build_style_exemplar_bank(emb_all, genre_idx, n_genres=n_genres)
+    diag = _style_bank_diagnostics(emb_all, genre_idx, n_genres=n_genres)
+    return cent, ex, diag
+
+
+@torch.no_grad()
 def _build_style_bank_from_codec_judge(
     style_judge: CodecStyleJudge,
     q_emb: np.ndarray,
@@ -437,6 +521,7 @@ def _evaluate_codec_gate(
     device: torch.device,
     max_eval_samples: int,
     seed: int,
+    n_passes: int = 1,
 ) -> Dict[str, float]:
     n_genres = int(style_centroid_bank.shape[0])
     if n_genres < 2 or len(val_idx) == 0:
@@ -541,7 +626,10 @@ def _evaluate_codec_gate(
 
         with torch.no_grad():
             z_noise = torch.zeros((q_src.shape[0], generator.noise_dim), device=device, dtype=q_src.dtype)
-            q_hat = generator(q_src=q_src, z_content=zc_src, z_style_tgt=z_tgt, noise=z_noise)
+            q_cur = q_src
+            for _pass in range(max(1, int(n_passes))):
+                q_cur = generator(q_src=q_cur, z_content=zc_src, z_style_tgt=z_tgt, noise=z_noise)
+            q_hat = q_cur
             x_hat = codec.decode_embeddings(q_hat)
             mel_hat = _wav_to_lab1_mel(x_hat)
             out_hat = lab1.forward_log_mel_tensor(mel_hat)
@@ -591,6 +679,7 @@ def main() -> None:
         args.stage3_epochs = min(int(args.stage3_epochs), 1)
         args.max_batches_per_epoch = 2
         args.sample_count = min(int(args.sample_count), 8)
+        args.mert_probe_epochs = min(int(args.mert_probe_epochs), 2)
 
     out_root = Path(args.out_root)
     out_root.mkdir(parents=True, exist_ok=True)
@@ -643,6 +732,21 @@ def main() -> None:
         device=str(device),
     )
 
+    # Load MERT if needed for conditioning
+    need_mert = (
+        str(args.style_cond_source).strip().lower() == "mert_probe_embed"
+        or str(args.style_loss_mode).strip().lower() == "mert_probe_ce"
+    )
+    mert: Optional[FrozenMERT] = None
+    if need_mert:
+        mert = FrozenMERT(
+            model_id=str(args.mert_model_id),
+            chunk_seconds=float(args.codec_chunk_seconds),
+            device=str(device),
+            layer=int(args.mert_layer),
+        )
+        print(f"[setup] mert={args.mert_model_id} hidden={mert.cfg.hidden_size} sr={mert.cfg.sample_rate}")
+
     if cache_dir.exists() and (cache_dir / "codec_cache_index.csv").exists():
         index_df, arrays, genre_to_idx, cache_meta = load_codec_cache(cache_dir=cache_dir)
     elif args.reuse_cache_dir is not None:
@@ -694,8 +798,41 @@ def main() -> None:
             max_start_sec=args.max_start_sec,
             seed=int(args.seed),
             progress_every=50,
+            mert=mert,
         )
         save_codec_cache(cache_dir=cache_dir, index_df=index_df, arrays=arrays, genre_to_idx=genre_to_idx, meta=cache_meta)
+
+    # If MERT is needed but cache lacks mert_feat, extract features from audio paths
+    if need_mert and "mert_feat" not in arrays and mert is not None:
+        print("[mert-cache] extracting MERT features for existing cache...")
+        mert_feats: List[np.ndarray] = []
+        for i, rec in index_df.iterrows():
+            p = Path(str(rec["path"]))
+            start_sec = float(rec.get("start_sec", 0.0))
+            try:
+                wav_raw = codec.load_codec_chunk(path=p, start_sec=start_sec)
+                wav_mert = codec.resample_audio(wav_raw, sr_from=int(codec.cfg.sample_rate), sr_to=int(mert.cfg.sample_rate))
+                feat = mert.extract_features(wav_mert)
+                mert_feats.append(feat)
+            except Exception:
+                mert_feats.append(np.zeros(mert.cfg.hidden_size, dtype=np.float32))
+            if (i + 1) % 100 == 0:
+                print(f"[mert-cache] {i + 1}/{len(index_df)}")
+        arrays["mert_feat"] = np.stack(mert_feats).astype(np.float32)
+        save_codec_cache(cache_dir=cache_dir, index_df=index_df, arrays=arrays, genre_to_idx=genre_to_idx, meta=cache_meta)
+        print(f"[mert-cache] done, shape={arrays['mert_feat'].shape}")
+
+    # Free MERT model from GPU — only the tiny MERTStyleProbe is needed during training
+    if mert is not None:
+        del mert.model
+        del mert.processor
+        del mert
+        mert = None
+        import gc; gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        print("[setup] freed MERT model from GPU")
+
     print(f"[cache] rows={len(index_df)} genres={len(genre_to_idx)}")
 
     genre_idx = arrays["genre_idx"]
@@ -714,6 +851,41 @@ def main() -> None:
         )
     print(f"[split] train={len(train_idx)} val={len(val_idx)}")
 
+    # Source factorization (needed early for optional source-removal projection)
+    source_codes, source_names = pd.factorize(index_df["source"].astype(str), sort=True)
+    source_idx_all = source_codes.astype(np.int64)
+    n_sources = int(len(source_names))
+    source_name_map = {int(i): str(name) for i, name in enumerate(source_names.tolist())}
+    state["source_index_map"] = {str(k): v for k, v in source_name_map.items()}
+
+    # Optional source-removal projection: remove source-predictive directions from q_emb
+    source_removal_info: Dict[str, object] = {"enabled": False}
+    if bool(args.source_removal_projection) and n_sources > 1:
+        sr_result = fit_source_removal_projection(
+            q_emb=arrays["q_emb"],
+            source_idx=source_idx_all,
+            genre_idx=arrays["genre_idx"],
+            n_sources=n_sources,
+            seed=int(args.seed),
+            max_remove_frac=float(args.source_removal_max_frac),
+            max_iterations=int(args.source_removal_max_iters),
+        )
+        arrays["q_emb"] = apply_source_removal_to_q_emb(arrays["q_emb"], sr_result.projection)
+        source_removal_info = {
+            "enabled": True,
+            "n_removed_dims": sr_result.n_removed_dims,
+            "max_remove_frac": float(args.source_removal_max_frac),
+            "source_acc_before": sr_result.source_acc_before,
+            "source_acc_after": sr_result.source_acc_after,
+            "genre_acc_before": sr_result.genre_acc_before,
+            "genre_acc_after": sr_result.genre_acc_after,
+        }
+        np.save(str(out_dir / "source_removal_projection.npy"), sr_result.projection)
+    _save_json(source_removal_info, out_dir / "source_removal_info.json")
+    state["source_removal"] = source_removal_info
+    _save_json(state, state_path)
+
+    n_genres = len(genre_to_idx)
     train_ds = CachedCodecDataset(arrays=arrays, indices=train_idx)
     train_loader = DataLoader(
         train_ds,
@@ -726,17 +898,11 @@ def main() -> None:
     if len(train_loader) == 0:
         raise RuntimeError("Empty training loader. Increase samples or reduce batch-size.")
 
-    n_genres = len(genre_to_idx)
     z_style_train = arrays["z_style"][train_idx]
     genre_train = arrays["genre_idx"][train_idx]
     q_train = arrays["q_emb"][train_idx]
 
     q_exemplar_bank = build_q_exemplar_bank(q_train, genre_train, n_genres=n_genres)
-    source_codes, source_names = pd.factorize(index_df["source"].astype(str), sort=True)
-    source_idx_all = source_codes.astype(np.int64)
-    n_sources = int(len(source_names))
-    source_name_map = {int(i): str(name) for i, name in enumerate(source_names.tolist())}
-    state["source_index_map"] = {str(k): v for k, v in source_name_map.items()}
     style_judge: Optional[CodecStyleJudge] = None
     style_judge_info: Dict[str, object] = {
         "mode": str(args.style_judge_mode),
@@ -778,6 +944,8 @@ def main() -> None:
                 seed=int(args.seed),
                 source_adv_weight=float(args.style_judge_source_adv_weight),
                 source_grl_lambda=float(args.style_judge_source_grl_lambda),
+                grl_warmup_epochs=int(args.style_judge_grl_warmup_epochs),
+                patience=int(args.style_judge_patience),
             )
             style_judge = freeze_judge(style_judge)
             style_judge_info.update(
@@ -818,8 +986,165 @@ def main() -> None:
     lab1_style_diag = _style_bank_diagnostics(z_style_train, genre_train, n_genres=n_genres)
     _save_json({"metrics": lab1_style_diag}, out_dir / "lab1_style_bank_diagnostics.json")
 
+    # Train Lab1 style probe if needed for conditioning or loss
+    lab1_probe: Optional[Lab1StyleProbe] = None
+    lab1_probe_info: Dict[str, object] = {"enabled": False}
+    need_probe = (
+        str(args.style_cond_source).strip().lower() == "lab1_probe_embed"
+        or str(args.style_loss_mode).strip().lower() == "lab1_probe_ce"
+    )
+    if need_probe:
+        probe_path = out_dir / "lab1_style_probe.pt"
+        if probe_path.exists() and args.mode == "resume":
+            payload = torch.load(str(probe_path), map_location="cpu")
+            cfgp = payload.get("config", {})
+            lab1_probe = Lab1StyleProbe(
+                in_dim=int(cfgp.get("in_dim", arrays["z_style"].shape[1])),
+                n_genres=int(cfgp.get("n_genres", n_genres)),
+                hidden=int(cfgp.get("hidden", int(args.lab1_probe_hidden))),
+                emb_dim=int(cfgp.get("emb_dim", int(args.lab1_probe_emb_dim))),
+                n_sources=int(cfgp.get("n_sources", 0)),
+            ).to(device)
+            lab1_probe.load_state_dict(payload["model"], strict=True)
+            lab1_probe = freeze_probe(lab1_probe)
+            lab1_probe_info = {"enabled": True, **payload.get("metrics", {})}
+            print(f"[lab1-probe] loaded {probe_path.name}")
+        else:
+            lab1_probe, probe_fit = fit_lab1_style_probe(
+                z_style=arrays["z_style"],
+                genre_idx=arrays["genre_idx"],
+                train_idx=train_idx,
+                val_idx=val_idx,
+                n_genres=int(n_genres),
+                source_idx=source_idx_all,
+                n_sources=int(n_sources),
+                device=device,
+                epochs=int(args.lab1_probe_epochs),
+                lr=float(args.lab1_probe_lr),
+                batch_size=int(args.style_judge_batch_size),
+                num_workers=int(args.num_workers),
+                hidden=int(args.lab1_probe_hidden),
+                emb_dim=int(args.lab1_probe_emb_dim),
+                seed=int(args.seed),
+                source_adv_weight=float(args.style_judge_source_adv_weight),
+                source_grl_lambda=float(args.style_judge_source_grl_lambda),
+                patience=int(args.lab1_probe_patience),
+            )
+            lab1_probe = freeze_probe(lab1_probe)
+            lab1_probe_info = {
+                "enabled": True,
+                "best_val_acc": float(probe_fit.best_val_acc),
+                "last_val_acc": float(probe_fit.last_val_acc),
+                "train_loss": float(probe_fit.train_loss),
+            }
+            torch.save(
+                {
+                    "model": lab1_probe.state_dict(),
+                    "config": {
+                        "in_dim": int(arrays["z_style"].shape[1]),
+                        "n_genres": int(n_genres),
+                        "hidden": int(args.lab1_probe_hidden),
+                        "emb_dim": int(args.lab1_probe_emb_dim),
+                        "n_sources": int(n_sources),
+                    },
+                    "metrics": dict(lab1_probe_info),
+                },
+                str(probe_path),
+            )
+            print(f"[lab1-probe] saved {probe_path.name}")
+    _save_json(lab1_probe_info, out_dir / "lab1_style_probe_info.json")
+    state["lab1_style_probe"] = lab1_probe_info
+    _save_json(state, state_path)
+
+    # Train MERT style probe if needed for conditioning or loss
+    mert_probe: Optional[MERTStyleProbe] = None
+    mert_probe_info: Dict[str, object] = {"enabled": False}
+    if need_mert and "mert_feat" in arrays:
+        mert_probe_path = out_dir / "mert_style_probe.pt"
+        if mert_probe_path.exists() and args.mode == "resume":
+            payload = torch.load(str(mert_probe_path), map_location="cpu")
+            cfgm = payload.get("config", {})
+            mert_probe = MERTStyleProbe(
+                in_dim=int(cfgm.get("in_dim", arrays["mert_feat"].shape[1])),
+                n_genres=int(cfgm.get("n_genres", n_genres)),
+                hidden=int(cfgm.get("hidden", int(args.mert_probe_hidden))),
+                emb_dim=int(cfgm.get("emb_dim", int(args.mert_probe_emb_dim))),
+                n_sources=int(cfgm.get("n_sources", 0)),
+            ).to(device)
+            mert_probe.load_state_dict(payload["model"], strict=True)
+            mert_probe = freeze_mert_probe(mert_probe)
+            mert_probe_info = {"enabled": True, **payload.get("metrics", {})}
+            print(f"[mert-probe] loaded {mert_probe_path.name}")
+        else:
+            mert_probe, mert_fit = fit_mert_style_probe(
+                mert_feat=arrays["mert_feat"],
+                genre_idx=arrays["genre_idx"],
+                train_idx=train_idx,
+                val_idx=val_idx,
+                n_genres=int(n_genres),
+                source_idx=source_idx_all,
+                n_sources=int(n_sources),
+                device=device,
+                epochs=int(args.mert_probe_epochs),
+                lr=float(args.mert_probe_lr),
+                batch_size=int(args.style_judge_batch_size),
+                num_workers=int(args.num_workers),
+                hidden=int(args.mert_probe_hidden),
+                emb_dim=int(args.mert_probe_emb_dim),
+                seed=int(args.seed),
+                source_adv_weight=float(args.style_judge_source_adv_weight),
+                source_grl_lambda=float(args.style_judge_source_grl_lambda),
+                patience=int(args.mert_probe_patience),
+            )
+            mert_probe = freeze_mert_probe(mert_probe)
+            mert_probe_info = {
+                "enabled": True,
+                "best_val_acc": float(mert_fit.best_val_acc),
+                "last_val_acc": float(mert_fit.last_val_acc),
+                "train_loss": float(mert_fit.train_loss),
+            }
+            torch.save(
+                {
+                    "model": mert_probe.state_dict(),
+                    "config": {
+                        "in_dim": int(arrays["mert_feat"].shape[1]),
+                        "n_genres": int(n_genres),
+                        "hidden": int(args.mert_probe_hidden),
+                        "emb_dim": int(args.mert_probe_emb_dim),
+                        "n_sources": int(n_sources),
+                    },
+                    "metrics": dict(mert_probe_info),
+                },
+                str(mert_probe_path),
+            )
+            print(f"[mert-probe] saved {mert_probe_path.name}")
+    _save_json(mert_probe_info, out_dir / "mert_style_probe_info.json")
+    state["mert_style_probe"] = mert_probe_info
+    _save_json(state, state_path)
+
     cond_source = str(args.style_cond_source).strip().lower()
-    if cond_source == "lab1_zstyle":
+    if cond_source == "mert_probe_embed":
+        if mert_probe is None or "mert_feat" not in arrays:
+            raise RuntimeError("style_cond_source=mert_probe_embed requires MERT features and trained probe")
+        mert_train = arrays["mert_feat"][train_idx]
+        style_centroid_bank, style_exemplar_bank, style_bank_diag = _build_style_bank_from_mert_probe(
+            probe=mert_probe,
+            mert_feat=mert_train,
+            genre_idx=genre_train,
+            n_genres=n_genres,
+            device=device,
+        )
+    elif cond_source == "lab1_probe_embed":
+        if lab1_probe is None:
+            raise RuntimeError("style_cond_source=lab1_probe_embed requires lab1 probe to be trained")
+        style_centroid_bank, style_exemplar_bank, style_bank_diag = _build_style_bank_from_lab1_probe(
+            probe=lab1_probe,
+            z_style=z_style_train,
+            genre_idx=genre_train,
+            n_genres=n_genres,
+            device=device,
+        )
+    elif cond_source == "lab1_zstyle":
         style_centroid_bank = build_style_centroid_bank(z_style_train, genre_train, n_genres=n_genres).to(device)
         style_exemplar_bank = build_style_exemplar_bank(z_style_train, genre_train, n_genres=n_genres)
         style_bank_diag = lab1_style_diag
@@ -880,6 +1205,7 @@ def main() -> None:
         n_blocks=int(args.translator_blocks),
         noise_dim=int(args.translator_noise_dim),
         residual_scale=float(args.translator_residual_scale),
+        direct_output=bool(args.translator_direct_output),
     ).to(device)
     disc = MultiScaleWaveDiscriminator(n_scales=int(args.discriminator_scales)).to(device)
 
@@ -927,6 +1253,10 @@ def main() -> None:
             and str(args.style_cond_source).strip().lower() == "codec_judge_embed"
         ):
             stage1_style_mode = "codec_judge_ce"
+        elif lab1_probe is not None and str(args.style_loss_mode).strip().lower() == "lab1_probe_ce":
+            stage1_style_mode = "lab1_probe_ce"
+        elif mert_probe is not None and str(args.style_loss_mode).strip().lower() == "mert_probe_ce":
+            stage1_style_mode = "mert_probe_ce"
         cfg1 = CodecStageTrainConfig(
             stage_name="stage1",
             epochs=int(args.stage1_epochs),
@@ -964,6 +1294,8 @@ def main() -> None:
             out_ckpt_dir=checkpoints_dir,
             device=device,
             resume=(args.mode == "resume"),
+            lab1_probe=lab1_probe,
+            mert_probe=mert_probe,
         )
         _append_history(history_path, hist)
         state["stage1_done"] = True
@@ -1001,7 +1333,7 @@ def main() -> None:
             weights=stage2_weights,
             style_push_margin=float(args.style_push_margin),
             delta_budget=float(args.stage2_delta_budget),
-            style_loss_mode=str(args.style_loss_mode) if style_judge is not None else "lab1_cos",
+            style_loss_mode=str(args.style_loss_mode),
             style_embed_align_weight=float(args.stage2_style_embed_align_weight),
         )
         hist = train_codec_stage(
@@ -1019,6 +1351,8 @@ def main() -> None:
             out_ckpt_dir=checkpoints_dir,
             device=device,
             resume=(args.mode == "resume" and stage2_ckpt.exists()),
+            lab1_probe=lab1_probe,
+            mert_probe=mert_probe,
         )
         _append_history(history_path, hist)
         state["stage2_done"] = True
@@ -1065,7 +1399,7 @@ def main() -> None:
             mode_seeking_target=float(args.stage3_mode_seeking_target),
             style_push_margin=float(args.style_push_margin),
             delta_budget=float(args.stage3_delta_budget),
-            style_loss_mode=str(args.style_loss_mode) if style_judge is not None else "lab1_cos",
+            style_loss_mode=str(args.style_loss_mode),
             style_embed_align_weight=float(args.stage3_style_embed_align_weight),
         )
         hist = train_codec_stage(
@@ -1083,10 +1417,26 @@ def main() -> None:
             out_ckpt_dir=checkpoints_dir,
             device=device,
             resume=(args.mode == "resume" and stage3_ckpt.exists()),
+            lab1_probe=lab1_probe,
+            mert_probe=mert_probe,
         )
         _append_history(history_path, hist)
         state["stage3_done"] = True
         _save_json(state, state_path)
+
+    # Load best checkpoint if all stages were skipped (e.g. eval-only resume)
+    if bool(state.get("stage3_done")) and bool(state.get("stage2_done")) and bool(state.get("stage1_done")):
+        for _ckpt_name in ("stage3_latest.pt", "stage2_latest.pt", "stage1_latest.pt"):
+            _ckpt_p = checkpoints_dir / _ckpt_name
+            if _ckpt_p.exists():
+                _load_models_from_ckpt(
+                    ckpt_path=_ckpt_p,
+                    generator=gen,
+                    discriminator=disc,
+                    device=device,
+                )
+                print(f"[eval-resume] loaded {_ckpt_name}")
+                break
 
     if bool(args.auto_sample_export):
         sample_dir = _export_codec_samples(
@@ -1122,6 +1472,7 @@ def main() -> None:
         device=device,
         max_eval_samples=int(args.gate_max_eval_samples),
         seed=int(args.seed),
+        n_passes=int(args.gate_multi_pass),
     )
     gate_pass = {
         "mps": bool(gate_metrics["mps"] >= float(args.gate_min_mps)),
