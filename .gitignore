@@ -21,6 +21,13 @@ Thumbs.db
 # Temp
 *.log
 
+# Generated artifacts
+lab 2/artifacts/
+notebooks/_manifest.json
+
+# Local scratch
+_cell11_current.py
+
 # Local agent metadata
 .claude/
 

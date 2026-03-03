@@ -11,7 +11,6 @@ Repo structure (collaboration-friendly):
 Quick links:
 - Notebooks index: `notebooks/README.md`
 - Documentation home: `docs/README.md`
-- Report generator: `scripts/generate_project_report_docx.py`
 
 ## Running
 
@@ -22,4 +21,3 @@ Most training/inference entrypoints are in the original lab folders:
 - Long-form coherence: `lab 3/run_lab4_longform_coherence.py`
 
 See `docs/tutorials/` for copy-paste commands and recommended presets.
-

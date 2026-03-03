@@ -12,8 +12,8 @@ keep experiments reproducible and collaboration friction low.
 
 ## Before opening a PR
 
-- Run notebook cleanup:
-  - `python scripts/prepare_notebooks.py`
+- Keep notebooks clean:
+  - Clear outputs before committing (to keep diffs small and readable).
 - Keep path defaults portable:
   - Prefer repo-relative paths (e.g. `saves2/...`) rather than machine-specific `Z:\...`
 - Record results:
@@ -27,4 +27,3 @@ keep experiments reproducible and collaboration friction low.
 - Explanation: rationale, tradeoffs, design constraints.
 
 See `docs/README.md` and `docs/references.md`.
-
