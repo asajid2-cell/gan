@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Dict
@@ -51,6 +52,16 @@ def _default_output_dir() -> Path:
     return _repo_root() / "saves" / "lab2_calibration" / f"lab2_{ts}"
 
 
+def _default_manifests_root() -> Path:
+    env = os.environ.get("DGGR_MANIFESTS_ROOT")
+    if env:
+        return Path(env)
+    z = Path("Z:/DataSets/_lab1_manifests")
+    if z.exists():
+        return z
+    return _repo_root() / "data" / "_lab1_manifests"
+
+
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Lab 2 - Genre Target Vector Space pipeline")
     p.add_argument(
@@ -62,8 +73,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument(
         "--manifests-root",
         type=Path,
-        default=Path("Z:/DataSets/_lab1_manifests"),
-        help="Directory containing cleaned manifests",
+        default=_default_manifests_root(),
+        help="Directory containing cleaned manifests (or set DGGR_MANIFESTS_ROOT)",
     )
     p.add_argument(
         "--manifest-files",

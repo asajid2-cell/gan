@@ -3,12 +3,12 @@
 Render Phase 1 symbolic corpora into WAV and emit a manifest for Lab 1.
 
 Inputs:
-- Z:/DataSets/_lab1_manifests/pdmx_no_license_conflict_manifest.csv
-- Z:/DataSets/_lab1_manifests/the_session_paths.json
+- <DATA_ROOT>/_lab1_manifests/pdmx_no_license_conflict_manifest.csv
+- <DATA_ROOT>/_lab1_manifests/the_session_paths.json
 
 Output:
-- Z:/DataSets/rendered/phase1_symbolic_audio/**/*.wav
-- Z:/DataSets/_lab1_manifests/phase1_symbolic_audio_manifest.csv
+- <DATA_ROOT>/rendered/phase1_symbolic_audio/**/*.wav
+- <DATA_ROOT>/_lab1_manifests/phase1_symbolic_audio_manifest.csv
 """
 
 from __future__ import annotations
@@ -33,24 +33,44 @@ except ImportError:  # pragma: no cover
     music21 = None
 
 
+def _repo_root() -> Path:
+    return Path(__file__).resolve().parents[1]
+
+
+def _default_data_root() -> Path:
+    env = os.environ.get("DGGR_DATA_ROOT")
+    if env:
+        return Path(env)
+    z = Path("Z:/DataSets")
+    if z.exists():
+        return z
+    return _repo_root() / "data"
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Render symbolic datasets for Lab 1 Phase 1.")
+    data_root = _default_data_root()
     parser.add_argument(
         "--manifests-root",
         type=Path,
-        default=Path(r"Z:/DataSets/_lab1_manifests"),
+        default=(data_root / "_lab1_manifests"),
         help="Directory holding manifest CSV/JSON files.",
     )
     parser.add_argument(
         "--output-root",
         type=Path,
-        default=Path(r"Z:/DataSets/rendered/phase1_symbolic_audio"),
+        default=(data_root / "rendered" / "phase1_symbolic_audio"),
         help="Directory where rendered WAV files are written.",
     )
     parser.add_argument(
         "--soundfont",
         type=Path,
-        default=Path(os.environ.get("LAB1_SOUNDFONT", r"Z:/DataSets/soundfonts/MuseScore_General.sf3")),
+        default=Path(
+            os.environ.get(
+                "LAB1_SOUNDFONT",
+                str(data_root / "soundfonts" / "MuseScore_General.sf3"),
+            )
+        ),
         help="SoundFont path used by FluidSynth.",
     )
     parser.add_argument("--rate", type=int, default=48000, help="Target sample rate.")
@@ -302,4 +322,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

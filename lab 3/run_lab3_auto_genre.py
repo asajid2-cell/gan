@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 from typing import Dict, List, Tuple
 
@@ -18,7 +19,11 @@ def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
         description="Auto-label manifests with genre predictions (CLAP zero-shot) to decouple genre from dataset source."
     )
-    p.add_argument("--manifests-root", type=Path, default=Path("Z:/DataSets/_lab1_manifests"))
+    p.add_argument(
+        "--manifests-root",
+        type=Path,
+        default=Path(os.environ.get("DGGR_MANIFESTS_ROOT", "data/_lab1_manifests")),
+    )
     p.add_argument("--manifest-files", nargs="*", default=DEFAULT_MANIFESTS)
     p.add_argument("--out-csv", type=Path, required=True)
     p.add_argument("--out-audit-csv", type=Path, default=None)
@@ -222,4 +227,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

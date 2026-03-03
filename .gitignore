@@ -20,3 +20,12 @@ Thumbs.db
 
 # Temp
 *.log
+
+# Local agent metadata
+.claude/
+
+# Generated reports (e.g., docx summaries)
+reports/
+
+# Experimental scratch dirs
+lab 3/diffusion_run1/

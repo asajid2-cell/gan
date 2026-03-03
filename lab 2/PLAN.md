@@ -4,7 +4,7 @@
 Build a stable 160-D target vector space from frozen Lab 1 style latents, then verify that genre blueprints are separable and decoder-ready.
 
 ## Phase A - Data and Label Materialization
-- Load cleaned manifests from `Z:/DataSets/_lab1_manifests`.
+- Load cleaned manifests from `DGGR_MANIFESTS_ROOT` (preferred) or repo-local `data/_lab1_manifests`.
 - Assign each sample to a Lab 2 genre bucket:
   - `baroque_classical`
   - `hiphop_xtc`

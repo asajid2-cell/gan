@@ -1,0 +1,6 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Questions / Discussion
+    url: https://github.com
+    about: Use Discussions (or a shared chat) for non-bug questions.
+

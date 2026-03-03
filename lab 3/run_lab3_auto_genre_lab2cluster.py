@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -27,7 +28,11 @@ def _parse_args() -> argparse.Namespace:
             "This is unpaired and data-driven, but clusters are 'style buckets' (not guaranteed human genres)."
         )
     )
-    p.add_argument("--manifests-root", type=Path, default=Path("Z:/DataSets/_lab1_manifests"))
+    p.add_argument(
+        "--manifests-root",
+        type=Path,
+        default=Path(os.environ.get("DGGR_MANIFESTS_ROOT", "data/_lab1_manifests")),
+    )
     p.add_argument("--manifest-files", nargs="*", default=DEFAULT_MANIFESTS)
     p.add_argument("--out-csv", type=Path, required=True)
     p.add_argument("--out-audit-csv", type=Path, default=None)

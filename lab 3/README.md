@@ -129,7 +129,7 @@ Two unpaired options are provided:
 
 ```powershell
 cd "lab 3"
-python run_lab3_auto_genre.py --out-csv "Z:/DataSets/_lab1_manifests/auto_genre_4way.csv" --labels hiphop lofi classical electronic
+python run_lab3_auto_genre.py --manifests-root "%DGGR_MANIFESTS_ROOT%" --out-csv "auto_genre_4way.csv" --labels hiphop lofi classical electronic
 ```
 
 End-to-end helper (CLAP label + train + audit):
@@ -143,7 +143,7 @@ Clusters `target160 = [z_style, descriptor32]` into `K` style buckets and writes
 
 ```powershell
 cd "lab 3"
-python run_lab3_auto_genre_lab2cluster.py --out-csv "Z:/DataSets/_lab1_manifests/auto_cluster_k4.csv" --n-clusters 4
+python run_lab3_auto_genre_lab2cluster.py --manifests-root "%DGGR_MANIFESTS_ROOT%" --out-csv "auto_cluster_k4.csv" --n-clusters 4
 ```
 
 Recommended fresh 3-run sequence:

@@ -24,7 +24,7 @@ generative reconstruction:
 
 ## Default Data Inputs
 
-Uses manifests in `Z:/DataSets/_lab1_manifests`:
+Uses manifests from `DGGR_MANIFESTS_ROOT` (recommended) or falls back to `Z:/DataSets/_lab1_manifests` if present:
 
 - `xtc_audio_clean.csv`
 - `hh_lfbb_audio_clean.csv`

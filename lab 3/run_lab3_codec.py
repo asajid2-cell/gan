@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 from datetime import datetime
 import json
+import os
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -67,6 +68,16 @@ def _repo_root() -> Path:
 
 def _default_out_root() -> Path:
     return _repo_root() / "saves2" / "lab3_codec_transfer"
+
+
+def _default_manifests_root() -> Path:
+    env = os.environ.get("DGGR_MANIFESTS_ROOT")
+    if env:
+        return Path(env)
+    z = Path("Z:/DataSets/_lab1_manifests")
+    if z.exists():
+        return z
+    return _repo_root() / "data" / "_lab1_manifests"
 
 
 def _default_lab1_checkpoint() -> Path:
@@ -139,7 +150,7 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--resume-dir", type=Path, default=None)
     p.add_argument("--reuse-cache-dir", type=Path, default=None)
 
-    p.add_argument("--manifests-root", type=Path, default=Path("Z:/DataSets/_lab1_manifests"))
+    p.add_argument("--manifests-root", type=Path, default=_default_manifests_root())
     p.add_argument("--manifest-files", nargs="*", default=DEFAULT_MANIFESTS)
     p.add_argument("--per-genre-samples", type=int, default=600)
     p.add_argument("--genre-schema", choices=["default4", "binary_acoustic_beats"], default="default4")

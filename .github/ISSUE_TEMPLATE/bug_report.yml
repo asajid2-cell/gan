@@ -1,0 +1,30 @@
+name: Bug report
+description: Report a reproducible bug (crash, incorrect output, broken training).
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: Include the exact command and what you expected.
+      placeholder: "Command: ...\nExpected: ...\nObserved: ..."
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / tracebacks
+      description: Paste relevant log lines or the full traceback.
+      render: shell
+    validations:
+      required: false
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      description: OS + Python + torch versions (and GPU if relevant).
+      placeholder: "Windows 11, Python 3.11, torch 2.x, RTX ..."
+    validations:
+      required: false
+

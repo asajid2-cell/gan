@@ -1,0 +1,20 @@
+name: Feature request
+description: Propose an improvement (docs, training knobs, metrics, refactors).
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: What should change? Why is it useful?
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: What would "done" look like? Include measurable criteria if possible.
+    validations:
+      required: false
+

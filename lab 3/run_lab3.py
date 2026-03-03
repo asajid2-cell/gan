@@ -4,6 +4,7 @@ import argparse
 from datetime import datetime
 from dataclasses import replace
 import json
+import os
 from pathlib import Path
 import re
 from typing import Dict, List, Optional
@@ -354,7 +355,11 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--resume-dir", type=Path, default=None)
     p.add_argument("--reuse-cache-dir", type=Path, default=None)
 
-    p.add_argument("--manifests-root", type=Path, default=Path("Z:/DataSets/_lab1_manifests"))
+    p.add_argument(
+        "--manifests-root",
+        type=Path,
+        default=Path(os.environ.get("DGGR_MANIFESTS_ROOT", "data/_lab1_manifests")),
+    )
     p.add_argument("--manifest-files", nargs="*", default=DEFAULT_MANIFESTS)
     p.add_argument("--per-genre-samples", type=int, default=800)
     p.add_argument("--genre-schema", choices=["default4", "binary_acoustic_beats"], default="default4")
