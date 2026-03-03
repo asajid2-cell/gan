@@ -22,5 +22,9 @@ Recommended next reads:
 - `docs/reference/cli.md`
 - `docs/reference/data_formats.md`
 - `docs/reference/env_vars.md`
+- `docs/explanation/results.md`
+- `docs/explanation/lab3_codec_transfer.md`
+- `docs/explanation/lab4_longform.md`
 - `docs/explanation/codec_vs_diffusion.md`
 - `docs/explanation/longform_coherence.md`
+- `docs/decisions/README.md`
