@@ -11,6 +11,9 @@ Repo structure (collaboration-friendly):
 Quick links:
 - Notebooks index: `notebooks/README.md`
 - Documentation home: `docs/README.md`
+- Final presentation deck: `presentation/dggr_lecture_deck.pptx`
+- Final presentation PDF: `presentation/dggr_lecture_deck.pdf`
+- Final speaker script PDF: `presentation/dggr_speaker_script.pdf`
 
 ## Running
 
