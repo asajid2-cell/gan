@@ -1,0 +1,59 @@
+Z:\328\CMPUT328-A2\codexworks\301\414-pl1\saves\lab3_synthesis\lab3_hailmary_prod_51\samples\sample_04_fake_to_hiphop_xtc.wav
+Z:\328\CMPUT328-A2\codexworks\301\414-pl1\saves\lab3_synthesis\lab3_hailmary_prod_51\samples\sample_05_fake_to_hiphop_xtc.wav
+
+Early generations bad general and quality
+
+Z:\328\CMPUT328-A2\codexworks\301\414-pl1\saves2\lab3_codec_transfer\run1055\samples\posttrain_samples\sample_0002_src3_tgt2.wav
+Z:\328\CMPUT328-A2\codexworks\301\414-pl1\saves2\lab3_codec_transfer\run1055\samples\posttrain_samples\sample_0003_src3_tgt2.wav
+
+Early codec runs seemed promising however they were constrained too heavily by the fact that its conditionally editing on the source making it hard to get meaningful longform runs with real stylistic differences beyond the coat of paint
+
+saves2\lab4_longform_coherence\smoke_antistatic\source.wav
+saves2\lab4_longform_coherence\smoke_antistatic\longform_coherent.wav
+codec has the ability to output relatively good quality runs in terms of both realism and style however it doesnt have enough control To the musical elements from the vocal elements leading to the obviously robotic filtered voice
+
+
+saves2\lab4_longform_coherence\fullsong_stable\longform_coherent.wav
+saves2\lab4_longform_coherence\fullsong_stable\source.wav
+
+Early long form runs as well showed lots of instability
+
+
+saves2\lab3_diffusion\run_d002\epoch_samples\e000_02_hiphop_xtc_gen.wav
+This is an early example of the epoxh6 high energy new sound in early training, obviously bad
+Z:\328\CMPUT328-A2\codexworks\301\414-pl1\saves2\lab3_diffusion\run_d002\epoch_samples\e006_01_hiphop_xtc_gen.wav
+Z:\328\CMPUT328-A2\codexworks\301\414-pl1\saves2\lab3_diffusion\run_d002\epoch_samples\e006_02_hiphop_xtc_GT.wav
+Z:\328\CMPUT328-A2\codexworks\301\414-pl1\saves2\lab3_diffusion\run_d002\epoch_samples\e006_01_hiphop_xtc_GT.wav
+Z:\328\CMPUT328-A2\codexworks\301\414-pl1\saves2\lab3_diffusion\run_d002\epoch_samples\e006_02_hiphop_xtc_gen.wav
+
+So this is the final model we ended up with, As you can see this model has the ability to create novel sounds while maintaining source content quite well, epoch shows it taking a high energy clip and outputting a hip hop beat out of it, with the second example being a taking the same High energy clip and outputting a matching energy one with new sounds 
+
+Z:\328\CMPUT328-A2\codexworks\301\414-pl1\Master Outputs\0027_20260310_144559_lab_3.1__outputs__diffusion_longform_compare__20260310_144559\clips\best\02_mitski_lush_01_01_liquid_smooth__to__baroque_classical\longform_coherent.wav
+For long form though little air is compounded can make it end up sounding really bad as shown in this 
+
+Z:\328\CMPUT328-A2\codexworks\301\414-pl1\Master Outputs\0042_20260325_140442_lab_3.1__outputs__diffusion_longform_settings_sweep__20260325_140442\clips\vocal_safe\02_mitski_laurel_hell_01_11_that_s_our_lamp__to__baroque_classical\longform_coherent.wav
+This is an example of a clip that pretty good overall, It takes the source and translate it into a sort of Baroque vocal classical song where vocals are more pronounced and the instruments are sort of background orchestra type classical instruments
+
+Now the base model itself is quite malleable in that you can command it and inference it in different ways for example Here are some other things we also tried
+
+Z:\328\CMPUT328-A2\codexworks\301\414-pl1\Master Outputs\0049_20260328_185852_lab_3.3__outputs__diffusion_downloads_best_finetune__run_20260328_185852\epoch_samples\epoch_001\downloads\03_MGMT - Electric Feel_source.wav
+Z:\328\CMPUT328-A2\codexworks\301\414-pl1\Master Outputs\0049_20260328_185852_lab_3.3__outputs__diffusion_downloads_best_finetune__run_20260328_185852\epoch_samples\epoch_001\downloads\03_MGMT - Electric Feel_to_hiphop_xtc.wav
+This one is a example of a failed fine tuning we tried fine tuning on more songs outside of the training data and it ended up just completely muddling it and making it sound like it's underwater or something 
+
+Z:\328\CMPUT328-A2\codexworks\301\414-pl1\Master Outputs\0084_20260331_124900_Desktop_Outputs__dggr_hybrid_final_selected__final_20260331_124900\mag\cc0_other\hybrid_longform_coherent.wav
+Z:\328\CMPUT328-A2\codexworks\301\414-pl1\Master Outputs\0084_20260331_124900_Desktop_Outputs__dggr_hybrid_final_selected__final_20260331_124900\mag\cc0_other\source.wav
+This is an example where we loosen the content restrictions allot allowing the style to flow freely, it's pretty disconnected however it does make new instruments and arrangements that do go with the song at points, However it's impossible to ignore the obvious disconnectedness
+
+Z:\328\CMPUT328-A2\codexworks\301\414-pl1\Master Outputs\0095_20260331_143538_Desktop_Outputs__dggr_hybrid_selected_pack__selected_20260331_143538\clips\style_pull_b\011_magdalena_bay_imaginal_disk_01_06_fear_sex__to__cc0_other\hybrid_longform_coherent.wav
+Z:\328\CMPUT328-A2\codexworks\301\414-pl1\Master Outputs\0095_20260331_143538_Desktop_Outputs__dggr_hybrid_selected_pack__selected_20260331_143538\clips\style_pull_b\011_magdalena_bay_imaginal_disk_01_06_fear_sex__to__cc0_other\source.wav
+In this example similarly the content restrictions are loosened and that while being a bit disconnected and less realistic sounds more stylistically different where the spacey pop tunes turn into distored guitar strings
+
+Z:\328\CMPUT328-A2\codexworks\301\414-pl1\Master Outputs\0098_20260331_154010_Desktop_Outputs__dggr_hybrid_selected_pack__selected_20260331_154010\clips\style_pull_c\002_sza_f2f__to__lofi_hh_lfbb\source.wav
+Z:\328\CMPUT328-A2\codexworks\301\414-pl1\Master Outputs\0098_20260331_154010_Desktop_Outputs__dggr_hybrid_selected_pack__selected_20260331_154010\clips\style_pull_c\002_sza_f2f__to__lofi_hh_lfbb\hybrid_longform_coherent.wav
+As shown here we can also choose to prioritize the vocal clarity which leads the song sounding a little less stylistically different since the vocals play a big part in how this sound is perceived however it sounds more realistic and more like the instrumental itself remastered without touching the original vocals
+
+Z:\328\CMPUT328-A2\codexworks\301\414-pl1\Master Outputs\0162_20260406_231430_Desktop_Outputs_dggr_per_genre_retrieval_body_style_block_suite_suite_20260406_231430_combined_pack_seamskip\beabadoobee_fairy_song\baroque_classical\hybrid_longform_coherent.wav
+Z:\328\CMPUT328-A2\codexworks\301\414-pl1\Master Outputs\0162_20260406_231430_Desktop_Outputs_dggr_per_genre_retrieval_body_style_block_suite_suite_20260406_231430_combined_pack_seamskip\beabadoobee_fairy_song\cc0_other\hybrid_longform_coherent.wav
+Z:\328\CMPUT328-A2\codexworks\301\414-pl1\Master Outputs\0162_20260406_231430_Desktop_Outputs_dggr_per_genre_retrieval_body_style_block_suite_suite_20260406_231430_combined_pack_seamskip\beabadoobee_fairy_song\hiphop_xtc\hybrid_longform_coherent.wav
+Z:\328\CMPUT328-A2\codexworks\301\414-pl1\Master Outputs\0162_20260406_231430_Desktop_Outputs_dggr_per_genre_retrieval_body_style_block_suite_suite_20260406_231430_combined_pack_seamskip\beabadoobee_fairy_song\lofi_hh_lfbb\hybrid_longform_coherent.wav
+As these clips show we can further push the style metric to try to get new different instruments and sounds however the further we the less realistic it sounds and so it's always a tradeoff between how realistic and how much style you want to inject however as we've shown above through these different clips you can choose to prioritize different things and it shows that the overall project let's you remaster it based on what you want, it's not just a simple filter or a coat of paint because you can actually build the different pieces in different ways depending on how you want this was also in relatively short time however we have all the tools necessary to push it further and get even more realistic sounding generations while further pushing the style score 

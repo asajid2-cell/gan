@@ -63,3 +63,26 @@ When possible, prefer reporting:
 - `boundary_disc_db_*`:
   - What: dB-scale boundary discontinuity proxy.
   - Why: correlates with perceived clicks/jumps between chunks.
+
+## Realism supervisor
+
+- `fad_mert`:
+  - What: true Fréchet distance between generated and real-audio embedding distributions using pretrained MERT embeddings.
+  - Why: primary realism metric for checkpoint ranking once melody/style are already acceptable.
+  - Note: lower is better.
+
+- `target_centroid_mae_norm`:
+  - What: normalized error between generated spectral centroid and the target-reference centroid profile.
+  - Why: catches tonal balance drift.
+
+- `target_hf_mae`:
+  - What: absolute error in the high-frequency energy ratio versus target-reference audio.
+  - Why: catches brittle, screechy, over-bright generations.
+
+- `target_lf_mae`:
+  - What: absolute error in the low-frequency energy ratio versus target-reference audio.
+  - Why: catches thin or hollow generations.
+
+- `target_dynamic_range_mae_db`:
+  - What: absolute error in mel-domain dynamic range versus target-reference audio.
+  - Why: catches over-compressed or overly flat outputs that sound synthetic.

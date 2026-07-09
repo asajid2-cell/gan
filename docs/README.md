@@ -14,17 +14,19 @@ Attributions and templates used:
 - `docs/references.md` (Diataxis, GitHub template docs, Contributor Covenant).
 
 Start here:
-- `docs/tutorials/01_quickstart_longform.md`
+- `lab 4/docs/01_quickstart_longform.md`
 - `docs/howto/reproduce_best_runs.md`
 - `docs/explanation/architecture.md`
+- `docs/explanation/project_state_20260401.md`
 
 Recommended next reads:
 - `docs/reference/cli.md`
 - `docs/reference/data_formats.md`
 - `docs/reference/env_vars.md`
 - `docs/explanation/results.md`
-- `docs/explanation/lab3_codec_transfer.md`
-- `docs/explanation/lab4_longform.md`
-- `docs/explanation/codec_vs_diffusion.md`
-- `docs/explanation/longform_coherence.md`
+- `docs/explanation/project_state_20260401.md`
+- `lab 3/docs/lab3_codec_transfer.md`
+- `lab 4/docs/lab4_longform.md`
+- `lab 3/docs/codec_vs_diffusion.md`
+- `lab 4/docs/longform_coherence.md`
 - `docs/decisions/README.md`

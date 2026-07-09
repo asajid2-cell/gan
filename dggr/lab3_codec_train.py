@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Callable, Dict, Iterable, List, Optional, Sequence, Tuple
 
 import numpy as np
 import torch
@@ -20,6 +20,7 @@ from .lab3_codec_models import (
     multiscale_hinge_d_loss,
     multiscale_hinge_g_loss,
 )
+from .lab3_mert_bridge import FrozenMERT
 
 
 @dataclass
@@ -49,6 +50,9 @@ class CodecStageTrainConfig:
     delta_budget: float = 0.12
     style_loss_mode: str = "lab1_cos"  # lab1_cos | codec_judge_ce
     style_embed_align_weight: float = 0.0
+    generated_mert_every: int = 0
+    generated_mert_weight: float = 0.0
+    generated_mert_align_weight: float = 0.0
     wave_mrstft_resolutions: Tuple[Tuple[int, int, int], ...] = (
         (512, 128, 512),
         (1024, 256, 1024),
@@ -281,6 +285,8 @@ def train_codec_stage(
     resume: bool = False,
     lab1_probe: Optional[Lab1StyleProbe] = None,
     mert_probe: Optional[MERTStyleProbe] = None,
+    mert_model: Optional[FrozenMERT] = None,
+    epoch_callback: Optional[Callable[[str, int, Dict], None]] = None,
 ) -> List[Dict]:
     generator.train()
     discriminator.train()
@@ -297,6 +303,9 @@ def train_codec_stage(
     if mert_probe is not None:
         mert_probe.eval()
         for p in mert_probe.parameters():
+            p.requires_grad = False
+    if mert_model is not None:
+        for p in mert_model.model.parameters():
             p.requires_grad = False
 
     opt_g = torch.optim.AdamW(
@@ -346,6 +355,8 @@ def train_codec_stage(
         m_content = 0.0
         m_style = 0.0
         m_style_embed = 0.0
+        m_style_mert_gen = 0.0
+        m_style_mert_gen_align = 0.0
         m_mrstft = 0.0
         m_adv = 0.0
         m_fm = 0.0
@@ -476,6 +487,8 @@ def train_codec_stage(
             loss_style = torch.tensor(0.0, device=device)
             loss_style_embed = torch.tensor(0.0, device=device)
             loss_style_push = torch.tensor(0.0, device=device)
+            loss_style_mert_gen = torch.tensor(0.0, device=device)
+            loss_style_mert_gen_align = torch.tensor(0.0, device=device)
             style_mode = str(stage_cfg.style_loss_mode).strip().lower()
             if style_mode == "codec_judge_ce" and style_judge is not None:
                 emb_hat = style_judge.embed(q_hat)
@@ -549,6 +562,32 @@ def train_codec_stage(
                     cos_to_src_style = F.cosine_similarity(zs_hat, zs_src, dim=-1)
                     loss_style_push = F.relu(cos_to_src_style - float(stage_cfg.style_push_margin)).mean()
 
+            use_generated_mert = (
+                mert_model is not None
+                and mert_probe is not None
+                and float(stage_cfg.generated_mert_weight) > 0.0
+                and int(stage_cfg.generated_mert_every) > 0
+                and str(stage_cfg.stage_name) != "stage1"
+                and (int(bi) % max(1, int(stage_cfg.generated_mert_every)) == 0)
+            )
+            if use_generated_mert:
+                mert_feat_hat = mert_model.extract_features_batch_tensor(
+                    waveforms=x_hat,
+                    sample_rate=int(codec.cfg.sample_rate),
+                )
+                emb_mert_hat = mert_probe.embed(mert_feat_hat)
+                logits_mert_hat = mert_probe.head(emb_mert_hat)
+                loss_style_mert_gen = F.cross_entropy(logits_mert_hat, tgt_genre_idx)
+                if (
+                    float(stage_cfg.generated_mert_align_weight) > 0.0
+                    and int(z_style_tgt.shape[1]) == int(emb_mert_hat.shape[1])
+                ):
+                    z_ref = F.normalize(z_style_tgt, dim=-1)
+                    loss_style_mert_gen_align = (1.0 - F.cosine_similarity(emb_mert_hat, z_ref, dim=-1)).mean()
+                probs_mert = torch.softmax(logits_mert_hat, dim=1)
+                p_src_mert = probs_mert.gather(1, src_genre_idx.view(-1, 1)).squeeze(1)
+                loss_style_push = loss_style_push + F.relu(p_src_mert - float(stage_cfg.style_push_margin)).mean()
+
             delta_mean = (q_hat - q_src).abs().mean(dim=(1, 2))
             loss_delta_budget = F.relu(delta_mean - float(stage_cfg.delta_budget)).mean()
 
@@ -579,6 +618,8 @@ def train_codec_stage(
                 + float(w.mrstft) * loss_mrstft
                 + float(w.content) * loss_content
                 + float(w.style) * loss_style
+                + float(stage_cfg.generated_mert_weight) * loss_style_mert_gen
+                + float(stage_cfg.generated_mert_align_weight) * loss_style_mert_gen_align
                 + float(w.mode_seeking) * loss_ms
                 + float(w.style_push) * loss_style_push
                 + float(w.delta_budget) * loss_delta_budget
@@ -596,6 +637,8 @@ def train_codec_stage(
             m_content += float(loss_content.detach().cpu())
             m_style += float(loss_style.detach().cpu())
             m_style_embed += float(loss_style_embed.detach().cpu())
+            m_style_mert_gen += float(loss_style_mert_gen.detach().cpu())
+            m_style_mert_gen_align += float(loss_style_mert_gen_align.detach().cpu())
             m_mrstft += float(loss_mrstft.detach().cpu())
             m_adv += float(loss_adv.detach().cpu())
             m_fm += float(loss_fm.detach().cpu())
@@ -616,6 +659,8 @@ def train_codec_stage(
             "loss_content": m_content / n,
             "loss_style": m_style / n,
             "loss_style_embed": m_style_embed / n,
+            "loss_style_mert_gen": m_style_mert_gen / n,
+            "loss_style_mert_gen_align": m_style_mert_gen_align / n,
             "loss_style_push": m_style_push / n,
             "loss_delta_budget": m_delta_budget / n,
             "loss_mrstft": m_mrstft / n,
@@ -633,6 +678,8 @@ def train_codec_stage(
             f" loss_d={row['loss_d']:.4f}"
             f" content={row['loss_content']:.4f}"
             f" style={row['loss_style']:.4f}"
+            f" mert_gen={row['loss_style_mert_gen']:.4f}"
+            f" alpha={row['cond_alpha']:.2f}"
             f" d_rate={row['d_step_rate']:.2f}"
         )
         hist_rows.append(row)
@@ -645,4 +692,6 @@ def train_codec_stage(
             opt_d=opt_d,
             meta={"stage": str(stage_cfg.stage_name), "config": stage_cfg.__dict__},
         )
+        if epoch_callback is not None:
+            epoch_callback(str(stage_cfg.stage_name), int(epoch), dict(row))
     return hist_rows

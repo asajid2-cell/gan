@@ -1,0 +1,69 @@
+\documentclass[10pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{hyperref}
+\usepackage{amsmath}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.45em}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=black,
+  urlcolor=blue
+}
+
+\begin{document}
+
+\begin{center}
+{\Large \textbf{Lab 3 Codec / Adversarial Generation Summary}}\\
+Deep Generative Genre Remastering
+\end{center}
+
+Lab 3 converts the frozen analysis stack from Labs 1 and 2 into a short-form conditional generator. The codec branch does not generate audio from pure noise. Instead, it performs adversarial latent translation inside a pretrained EnCodec space. A source waveform is encoded into latent codes $q_{\text{src}}$, Lab 1 supplies $z_{\text{content}}$ as the structural anchor, and a target style embedding supplies the genre condition. A FiLM-conditioned translator predicts edited or rewritten codec latents $q_{\text{hat}}$, and a frozen EnCodec decoder reconstructs the waveform. A multi-scale discriminator, feature-matching loss, content loss, and spectral losses are then used to keep the translated output plausible while preserving melody. The branch is therefore best described as \textbf{adversarial source-conditioned editing} rather than generation from scratch.
+
+Three architectural changes were especially important. First, EnCodec was used as a decoder guardrail so that the generator would stay on a realistic audio manifold. Second, MERT-probe embeddings replaced weaker style centroids, which improved conditioning and separated target styles more clearly. Third, direct-output translation was enabled so the translator could move beyond a small residual around the source latent code. These changes were responsible for the first large jump in Lab 3 style metrics.
+
+The main metrics in this report serve different purposes. \textbf{MPS} (melodic preservation score) measures cosine similarity between source and generated content embeddings, so higher values mean the original melodic and structural identity survived. \textbf{Style confidence} is the mean probability that the internal Lab 3 judge assigns to the target genre, while \textbf{style accuracy} is the fraction of clips whose target genre is predicted correctly; together they describe how strongly the internal judge believes style transfer has happened. \textbf{Target accuracy} and \textbf{target cosine} are generated-audio realism-supervisor measures computed on held-out transfers, so they are a stricter test of whether the output actually moved toward the target style rather than merely satisfying the training-time judge. \textbf{FAD} is Fr\'echet Audio Distance over pretrained MERT embeddings, where lower is better and smaller values indicate that generated audio sits closer to real audio. \textbf{HF MAE} is the absolute error in high-frequency energy relative to target-reference audio, so smaller values usually mean less brittle, screechy, or over-bright output.
+
+The first clearly successful codec run was \texttt{run1055}. It became the original best Lab 3 run because it achieved strong internal gate metrics while preserving melody:
+
+\begin{center}
+\begin{tabular}{>{\raggedright\arraybackslash}p{0.28\linewidth} >{\raggedleft\arraybackslash}p{0.14\linewidth} >{\raggedleft\arraybackslash}p{0.16\linewidth} >{\raggedleft\arraybackslash}p{0.15\linewidth} >{\raggedleft\arraybackslash}p{0.14\linewidth}}
+\toprule
+\textbf{Run} & \textbf{MPS} & \textbf{Style conf.} & \textbf{Style acc.} & \textbf{Pairwise cos.} \\
+\midrule
+run1055 & 0.9565 & 0.8940 & 0.9492 & 0.0612 \\
+run1056 & 0.9541 & 0.6534 & 0.7266 & 0.1634 \\
+run1057probe4 & 0.9520 & 0.1447 & 0.1367 & 0.3955 \\
+codec\_reset\_20260310\_051425 & 0.9571 & 0.8943 & 0.9531 & 0.0426 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+However, later analysis showed that these internal gate metrics overstated how convincing the generated outputs really were. The realism supervisor measured generated-audio realism and target-style movement directly, and that changed the interpretation of the runs:
+
+\begin{center}
+\begin{tabular}{>{\raggedright\arraybackslash}p{0.27\linewidth} >{\raggedleft\arraybackslash}p{0.11\linewidth} >{\raggedleft\arraybackslash}p{0.12\linewidth} >{\raggedleft\arraybackslash}p{0.12\linewidth} >{\raggedleft\arraybackslash}p{0.11\linewidth} >{\raggedleft\arraybackslash}p{0.12\linewidth}}
+\toprule
+\textbf{Run} & \textbf{MPS} & \textbf{Target acc.} & \textbf{Target cos.} & \textbf{FAD} & \textbf{HF MAE} \\
+\midrule
+run1055 & 0.9991 & 0.2500 & -0.0998 & 27.01 & 0.1760 \\
+run1056 & 0.9996 & 0.0833 & -0.1572 & 17.92 & 0.1039 \\
+run1057probe4 & 0.9888 & 0.3750 & 0.1655 & 41.84 & 0.1309 \\
+codec\_reset\_20260310\_051425 & 0.9853 & 0.6250 & 0.5956 & 35.07 & 0.0590 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+These numbers show the main pattern observed during Lab 3. \texttt{run1055} was the strongest early success under the original Lab 3 gate, but its generated-audio target-style movement was weaker than the gate implied. \texttt{run1056} improved realism substantially and reduced harshness, but style movement collapsed, making the outputs safer but less convincingly remastered. \texttt{run1057probe4} restored some target-style movement with stronger late-stage tuning, but realism degraded too far. The best overall balance was the overnight reset run \texttt{codec\_reset\_20260310\_051425}, which combined strong Lab 3 gate performance with the best generated-audio style movement seen so far in the codec branch, although its Fr\'echet distance still missed the stricter realism threshold.
+
+The main conclusion from Lab 3 is that the codec/GAN branch is effective as a stable short-form remastering system. It preserves melody very well, it benefits strongly from adversarial training, and it can produce noticeable style transfer when the style-conditioning and direct-output settings are tuned correctly. At the same time, the branch remains structurally biased toward source-conditioned editing rather than full re-authoring. This is why realism and style movement still trade off against one another. The branch is therefore a successful and important part of the project, but it is better understood as a high-quality adversarial editor than as a complete from-scratch genre generator.
+
+\vspace{0.6em}
+\textbf{Primary run artifacts used in this summary:} \texttt{run\_state.json} and \texttt{codec\_realism\_best.json} from \texttt{run1055}, \texttt{run1056}, \texttt{run1057probe4}, and \texttt{codec\_reset\_20260310\_051425}.
+
+\end{document}

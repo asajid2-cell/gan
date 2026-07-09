@@ -1,0 +1,67 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{parskip}
+
+\title{Lab 3 Demo Summary}
+\author{DGGR Project}
+\date{March 2026}
+
+\begin{document}
+\maketitle
+
+Lab 3 was the main generation stage of the project. The goal was to move past simple audio filtering and instead build a generator that could preserve the musical identity of a source song while reconstructing it inside a different target genre. In practice, this lab produced two different branches: a codec-latent branch and a diffusion branch. The codec branch focused on source-conditioned latent translation inside a pretrained neural codec, while the diffusion branch focused on direct mel-spectrogram generation with content and style conditioning. This document summarizes those architectures, the runs that were trained, the main losses and metrics, and the conclusions reached before the current new diffusion retooling work.
+
+The codec branch used a pretrained EnCodec model as a realism prior. Audio was first encoded into codec latents, and the generator then predicted a new latent sequence conditioned on a Lab 1 content embedding and a target style embedding. The core translator was a stack of FiLM-conditioned one-dimensional residual blocks. The key design choice was that the best run used direct output rather than a residual-only edit, so the model was allowed to rewrite the codec representation more aggressively. The loss stack combined adversarial hinge loss, feature matching, latent L1, latent continuity, an MR-STFT waveform proxy, content preservation, and style supervision. The intuition was that the codec decoder already knew how to turn valid codec latents into plausible audio, so the generator could concentrate on the style change rather than learning waveform physics from scratch.
+
+The diffusion branch used an 80-bin BigVGAN-compatible mel representation. The model took a noisy mel spectrogram together with conditioning features such as chroma, onset, and beat, and then predicted a denoising target with a conditional U-Net. The style and content controls came from the frozen Lab 1 encoder. The diffusion branch used a v-prediction objective, classifier-free guidance, EMA sampling, and BigVGAN for mel-to-waveform synthesis. The motivation was that diffusion gave more freedom for stronger perceptual remastering than codec editing, even though it was slower and more sensitive to long-form instability.
+
+The most important codec run was \texttt{run1055}. It used an 8-epoch stage 1, a 16-epoch stage 2, and an 8-epoch stage 3 schedule. Stage 1 acted as a reconstruction and stabilization phase. Stage 2 pushed actual source-to-target remastering. Stage 3 increased the style pressure further. The training history showed the expected pattern. In stage 1, the generator loss dropped from 13.09 to 7.54 while the style loss dropped from 0.77 to 0.27 and the MR-STFT proxy dropped from 2.30 to 1.48. In stage 2, the generator loss settled from 10.70 to 7.22 while style-related terms stayed elevated, indicating active transfer rather than simple reconstruction. In stage 3, the loss became larger again, which is expected because the model was pushed harder toward target-style changes.
+
+The codec gate metrics for \texttt{run1055} were strong:
+\begin{center}
+\begin{tabular}{>{\raggedright\arraybackslash}p{1.8in}r}
+\toprule
+Metric & Value \\
+\midrule
+MPS & 0.9565 \\
+style\_conf & 0.8940 \\
+style\_acc & 0.9492 \\
+pairwise\_cos & 0.0612 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+These were the metrics that originally made \texttt{run1055} the best codec run. Here, MPS is the melodic preservation score, which measures how well the content embedding of the source is preserved. \texttt{style\_conf} is the mean confidence assigned to the target genre by the style judge, and \texttt{style\_acc} is the target hit rate. Lower \texttt{pairwise\_cos} is better because it suggests the outputs are not collapsing to near-identical samples.
+
+However, the later realism supervisor gave a more cautious picture for the same codec run. For the best sampled checkpoint from \texttt{run1055}, the supervisor reported MPS 0.9991, but target-style accuracy only 0.25, target-style cosine \(-0.0998\), FAD 27.01, target high-frequency MAE 0.176, and target dynamic-range error 20.64 dB. In other words, the codec branch clearly preserved content and passed its internal gate, but it still had difficulty producing generated audio that sounded fully native to the target genre manifold. This became one of the central conclusions of Lab 3: the codec branch was strong as a controlled latent editor, but weaker as a full re-authoring model.
+
+The diffusion branch centered on \texttt{run\_d002}. This run trained for 19 logged epochs, from epoch 0 through epoch 18. The training and validation losses improved steadily. The training loss fell from 0.0809 at epoch 0 to 0.0399 at epoch 18. Validation loss fell from 0.2295 at epoch 0 to 0.0386 at epoch 18. From a purely numerical perspective, epoch 18 was the strongest checkpoint. However, listening tests and project notes showed that the best subjective quality appeared earlier, around epoch 6. At epoch 6, the validation loss was still higher at 0.0442, but the generated audio sounded less over-smoothed. This matched the common diffusion behavior where later checkpoints improve the loss while becoming less lively and more averaged.
+
+The realism supervisor for the diffusion run gave the best quantitative Lab 3 generated-audio result:
+\begin{center}
+\begin{tabular}{>{\raggedright\arraybackslash}p{2.0in}r}
+\toprule
+Metric & Value \\
+\midrule
+MPS & 0.9971 \\
+style\_target\_acc & 0.75 \\
+style\_target\_cos & 0.9985 \\
+FAD (MERT) & 26.24 \\
+target\_hf\_mae & 0.0352 \\
+target\_dynamic\_range\_mae\_db & 7.07 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+These numbers were much more encouraging than the codec realism results. Here, \texttt{style\_target\_acc} is the fraction of generated samples recognized as the intended target style, \texttt{style\_target\_cos} measures cosine similarity between generated audio embeddings and the target-style reference centroid, and FAD is Fr\'echet Audio Distance computed in a pretrained MERT embedding space, where lower is better. The target high-frequency and dynamic-range errors measure whether the generated spectrum is unnaturally bright, brittle, flat, or compressed relative to real target-domain audio. On these realism-oriented metrics, diffusion was the stronger Lab 3 branch.
+
+The main Lab 3 conclusion was therefore not that one branch simply won in every respect. Instead, the two branches exposed a tradeoff. The codec branch was better at preserving identity and staying stable, but it often behaved more like a strong editor than a full generator. The diffusion branch was better at stronger genre movement and better realism-supervisor scores, but it was more fragile and later caused long-form problems in Lab 4, especially warble, static accumulation, and vocal instability. This is why the project eventually treated codec as the conservative source-preserving baseline and diffusion as the more promising branch for true remastering.
+
+For the demo, the clearest summary is this. Lab 3 succeeded in training two real generation pipelines. The codec system proved that codec-latent translation can preserve melody and produce high-quality audio, but it did not fully solve deep genre remastering. The diffusion system showed better evidence of reaching the target genre manifold and produced the best generated-audio realism metrics, but it exposed a new challenge: short-form quality was not enough, because long-form generation and artifact control remained unstable. That result directly motivated the later realism supervisor and the long-form stabilization work, but those later steps belong to the next phase rather than the baseline Lab 3 story summarized here.
+
+\end{document}

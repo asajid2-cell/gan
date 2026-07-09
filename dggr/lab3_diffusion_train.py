@@ -216,6 +216,42 @@ def vocode_bigvgan(
     return wav.squeeze(1).cpu().numpy().astype(np.float32)
 
 
+def load_bigvgan_robust(
+    device: torch.device,
+    model_id: str = "nvidia/bigvgan_v2_22khz_80band_256x",
+):
+    """Load BigVGAN across older/newer library combinations.
+
+    Some local environments have a version mismatch where BigVGAN's
+    ``from_pretrained`` path fails because the underlying HF helper expects
+    extra keyword-only arguments such as ``proxies`` and ``resume_download``.
+    Fall back to manual file download + state-dict restore in that case.
+    """
+    import bigvgan as bvg
+
+    try:
+        vocoder = bvg.BigVGAN.from_pretrained(model_id, use_cuda_kernel=False)
+        vocoder.remove_weight_norm()
+        vocoder.eval().to(device)
+        return vocoder
+    except Exception:
+        from huggingface_hub import hf_hub_download
+
+        config_path = hf_hub_download(repo_id=model_id, filename="config.json")
+        ckpt_path = hf_hub_download(repo_id=model_id, filename="bigvgan_generator.pt")
+
+        with open(config_path, "r", encoding="utf-8") as f:
+            hparams = bvg.AttrDict(json.load(f))
+        vocoder = bvg.BigVGAN(hparams)
+
+        payload = torch.load(ckpt_path, map_location="cpu", weights_only=False)
+        state_dict = payload["generator"] if isinstance(payload, dict) and "generator" in payload else payload
+        vocoder.load_state_dict(state_dict, strict=False)
+        vocoder.remove_weight_norm()
+        vocoder.eval().to(device)
+        return vocoder
+
+
 # ---------------------------------------------------------------------------
 # Evaluation metrics
 # ---------------------------------------------------------------------------
@@ -284,7 +320,10 @@ def load_checkpoint(
     optimizer: Optional[torch.optim.Optimizer] = None,
     device: torch.device = None,
 ) -> Dict:
-    ckpt = torch.load(str(path), map_location=device or "cpu")
+    try:
+        ckpt = torch.load(str(path), map_location=device or "cpu", weights_only=False)
+    except TypeError:
+        ckpt = torch.load(str(path), map_location=device or "cpu")
     model.load_state_dict(ckpt["model"])
     ema.load_state_dict(ckpt["ema"])
     if optimizer is not None and "optimizer" in ckpt:
@@ -763,21 +802,16 @@ def generate_epoch_samples(
     """Generate sample WAVs at end of epoch for quality monitoring."""
     import soundfile as sf
     try:
-        import bigvgan as bvg
-    except ImportError:
+        vocoder = load_bigvgan_robust(device=device)
+    except Exception as e:
         print("  [epoch samples] bigvgan not available, skipping")
+        print(f"  [epoch samples] loader error: {e}")
         return
 
     sample_dir = out_dir / "epoch_samples"
     sample_dir.mkdir(parents=True, exist_ok=True)
 
     idx_to_genre = {v: k for k, v in genre_to_idx.items()}
-
-    # Load vocoder temporarily
-    vocoder = bvg.BigVGAN.from_pretrained(
-        "nvidia/bigvgan_v2_22khz_80band_256x", use_cuda_kernel=False)
-    vocoder.remove_weight_norm()
-    vocoder.eval().to(device)
 
     from .lab3_diffusion_data import DIFFUSION_SR
 

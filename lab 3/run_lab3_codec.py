@@ -15,7 +15,7 @@ import librosa
 from torch.utils.data import DataLoader
 from sklearn.linear_model import LogisticRegression
 
-from src.lab3_bridge import FrozenLab1Encoder
+from src.lab3_bridge import FrozenLab1Encoder, extract_log_mel, fix_log_mel_frames
 from src.lab3_codec_bridge import FrozenEncodec
 from src.lab3_codec_data import (
     DEFAULT_MANIFESTS,
@@ -148,6 +148,8 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--strict-run-naming", action=argparse.BooleanOptionalAction, default=True)
     p.add_argument("--force-custom-run-name", action="store_true")
     p.add_argument("--resume-dir", type=Path, default=None)
+    p.add_argument("--bootstrap-ckpt", type=Path, default=None,
+                   help="Optional generator/discriminator checkpoint to load before stage2/3 in fresh runs")
     p.add_argument("--reuse-cache-dir", type=Path, default=None)
 
     p.add_argument("--manifests-root", type=Path, default=_default_manifests_root())
@@ -217,6 +219,8 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--translator-residual-scale", type=float, default=0.5)
     p.add_argument("--translator-direct-output", action="store_true",
                     help="Remove residual connection — network outputs q_hat directly")
+    p.add_argument("--translator-direct-mix", type=float, default=1.0,
+                    help="When direct output is enabled, blend direct output with the residual path (0=residual, 1=direct)")
     p.add_argument("--discriminator-scales", type=int, default=3)
 
     p.add_argument("--stage1-epochs", type=int, default=8)
@@ -267,6 +271,9 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--stage2-style-weight", type=float, default=9.0)
     p.add_argument("--stage2-mrstft-weight", type=float, default=0.20)
     p.add_argument("--stage2-style-embed-align-weight", type=float, default=0.50)
+    p.add_argument("--stage2-generated-mert-weight", type=float, default=0.0)
+    p.add_argument("--stage2-generated-mert-align-weight", type=float, default=0.0)
+    p.add_argument("--stage2-generated-mert-every", type=int, default=0)
 
     p.add_argument("--stage3-cond-mode", choices=["centroid", "exemplar", "mix"], default="exemplar")
     p.add_argument("--stage3-cond-alpha-start", type=float, default=0.5)
@@ -283,6 +290,9 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--stage3-style-embed-align-weight", type=float, default=0.75)
     p.add_argument("--stage3-mode-seeking-weight", type=float, default=0.05)
     p.add_argument("--stage3-mode-seeking-target", type=float, default=0.03)
+    p.add_argument("--stage3-generated-mert-weight", type=float, default=0.0)
+    p.add_argument("--stage3-generated-mert-align-weight", type=float, default=0.0)
+    p.add_argument("--stage3-generated-mert-every", type=int, default=0)
 
     p.add_argument("--r1-gamma", type=float, default=1.0)
     p.add_argument("--r1-interval", type=int, default=16)
@@ -296,6 +306,12 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--sample-count", type=int, default=24)
     p.add_argument("--sample-export-tag", type=str, default="posttrain_samples")
     p.add_argument("--sample-write-source-audio", action=argparse.BooleanOptionalAction, default=True)
+    p.add_argument("--epoch-sample-source-file", type=Path, default=None)
+    p.add_argument("--epoch-sample-offset-sec", type=float, default=0.0)
+    p.add_argument("--epoch-sample-every", type=int, default=1)
+    p.add_argument("--epoch-sample-tag", type=str, default="epoch_samples")
+    p.add_argument("--epoch-sample-target-genres", nargs="*", type=int, default=None)
+    p.add_argument("--epoch-sample-write-source-audio", action=argparse.BooleanOptionalAction, default=True)
     p.add_argument("--gate-multi-pass", type=int, default=1,
                     help="Run translator N times, feeding q_hat back as q_src each pass")
     p.add_argument("--gate-max-eval-samples", type=int, default=256)
@@ -406,6 +422,129 @@ def _export_codec_samples(
             }
         )
     pd.DataFrame(rows).to_csv(sample_dir / "generation_summary.csv", index=False)
+    return sample_dir
+
+
+def _prepare_fixed_source_sample(
+    source_file: Path,
+    codec: FrozenEncodec,
+    lab1: FrozenLab1Encoder,
+    device: torch.device,
+    offset_sec: float = 0.0,
+) -> Optional[Dict]:
+    source_file = Path(source_file)
+    if not source_file.exists():
+        print(f"[epoch-sample] source file not found: {source_file}")
+        return None
+
+    y_src, _ = librosa.load(
+        str(source_file),
+        sr=int(codec.cfg.sample_rate),
+        mono=True,
+        offset=max(0.0, float(offset_sec)),
+        duration=float(codec.cfg.chunk_seconds),
+    )
+    target_len = int(round(float(codec.cfg.chunk_seconds) * float(codec.cfg.sample_rate)))
+    if len(y_src) < target_len:
+        y_src = np.pad(y_src, (0, target_len - len(y_src)), mode="constant")
+    elif len(y_src) > target_len:
+        y_src = y_src[:target_len]
+    y_src = y_src.astype(np.float32, copy=False)
+    if np.max(np.abs(y_src)) > 0:
+        y_src = y_src / (np.max(np.abs(y_src)) + 1e-8)
+
+    wav_t = codec.wav_to_tensor(y_src)
+    q_src = codec.encode_embeddings(wav_t).to(device).float()
+    mel = extract_log_mel(np.asarray(y_src, dtype=np.float32), sr=int(codec.cfg.sample_rate))
+    mel = fix_log_mel_frames(mel, 256)
+    lab1_out = lab1.infer_log_mel(mel)
+    zc = torch.from_numpy(np.asarray(lab1_out["z_content"], dtype=np.float32)).unsqueeze(0).to(device)
+
+    return {
+        "source_file": str(source_file),
+        "offset_sec": float(offset_sec),
+        "source_audio": y_src,
+        "q_src": q_src,
+        "z_content": zc.float(),
+    }
+
+
+def _export_fixed_source_epoch_samples(
+    out_dir: Path,
+    generator: CodecLatentTranslator,
+    codec: FrozenEncodec,
+    fixed_source: Dict,
+    style_centroid_bank: torch.Tensor,
+    style_exemplar_bank: Optional[Dict[int, torch.Tensor]],
+    genre_names: Dict[int, str],
+    stage_name: str,
+    epoch: int,
+    cond_mode: str,
+    cond_alpha: float,
+    target_genres: Optional[List[int]] = None,
+    write_source_audio: bool = True,
+) -> Optional[Path]:
+    if not HAS_SF:
+        print("[epoch-sample] soundfile not installed; skipping export.")
+        return None
+
+    sample_dir = Path(out_dir) / str(stage_name) / f"epoch_{int(epoch):03d}"
+    sample_dir.mkdir(parents=True, exist_ok=True)
+    device = next(generator.parameters()).device
+    generator.eval()
+
+    q_src = fixed_source["q_src"].to(device)
+    zc = fixed_source["z_content"].to(device)
+    source_audio = np.asarray(fixed_source["source_audio"], dtype=np.float32)
+    n_genres = int(style_centroid_bank.shape[0])
+    targets = list(target_genres) if target_genres else list(range(n_genres))
+    rows: List[Dict] = []
+
+    if bool(write_source_audio):
+        sf.write(str(sample_dir / "source.wav"), source_audio, int(codec.cfg.sample_rate))
+
+    for tgt_genre in targets:
+        if int(tgt_genre) < 0 or int(tgt_genre) >= n_genres:
+            continue
+        z_cent = style_centroid_bank[int(tgt_genre) : int(tgt_genre) + 1].to(device).float()
+        z_ex_bank = None if style_exemplar_bank is None else style_exemplar_bank.get(int(tgt_genre))
+        if z_ex_bank is None or len(z_ex_bank) == 0:
+            z_ex = z_cent
+        else:
+            z_ex = z_ex_bank[0:1].to(device).float()
+        mode = str(cond_mode).strip().lower()
+        if mode == "centroid":
+            z_tgt = z_cent
+        elif mode == "exemplar":
+            z_tgt = z_ex
+        else:
+            z_tgt = float(cond_alpha) * z_cent + (1.0 - float(cond_alpha)) * z_ex
+        z_tgt = torch.nn.functional.normalize(z_tgt, dim=-1)
+
+        with torch.no_grad():
+            q_hat = generator(q_src=q_src, z_content=zc, z_style_tgt=z_tgt)
+            wav = codec.decode_embeddings(q_hat)[0, 0].detach().cpu().numpy().astype(np.float32)
+        if np.max(np.abs(wav)) > 0:
+            wav = wav / (np.max(np.abs(wav)) + 1e-8)
+
+        genre_name = genre_names.get(int(tgt_genre), f"genre_{int(tgt_genre)}")
+        safe_name = "".join(ch if ch.isalnum() or ch in ("-", "_") else "_" for ch in genre_name)
+        out_wav = sample_dir / f"{stage_name}_e{int(epoch):03d}_tgt{int(tgt_genre)}_{safe_name}.wav"
+        sf.write(str(out_wav), wav, int(codec.cfg.sample_rate))
+        rows.append(
+            {
+                "stage": str(stage_name),
+                "epoch": int(epoch),
+                "target_genre_idx": int(tgt_genre),
+                "target_genre_name": genre_name,
+                "source_file": str(fixed_source["source_file"]),
+                "source_offset_sec": float(fixed_source["offset_sec"]),
+                "fake_wav": str(out_wav),
+            }
+        )
+
+    pd.DataFrame(rows).to_csv(sample_dir / "generation_summary.csv", index=False)
+    print(f"[epoch-sample] wrote {sample_dir}")
     return sample_dir
 
 
@@ -747,6 +886,8 @@ def main() -> None:
     need_mert = (
         str(args.style_cond_source).strip().lower() == "mert_probe_embed"
         or str(args.style_loss_mode).strip().lower() == "mert_probe_ce"
+        or float(args.stage2_generated_mert_weight) > 0.0
+        or float(args.stage3_generated_mert_weight) > 0.0
     )
     mert: Optional[FrozenMERT] = None
     if need_mert:
@@ -833,8 +974,13 @@ def main() -> None:
         save_codec_cache(cache_dir=cache_dir, index_df=index_df, arrays=arrays, genre_to_idx=genre_to_idx, meta=cache_meta)
         print(f"[mert-cache] done, shape={arrays['mert_feat'].shape}")
 
-    # Free MERT model from GPU — only the tiny MERTStyleProbe is needed during training
-    if mert is not None:
+    keep_mert_for_training = (
+        float(args.stage2_generated_mert_weight) > 0.0
+        or float(args.stage3_generated_mert_weight) > 0.0
+    )
+
+    # Free MERT model unless late-stage generated-audio supervision needs it.
+    if mert is not None and not keep_mert_for_training:
         del mert.model
         del mert.processor
         del mert
@@ -843,6 +989,8 @@ def main() -> None:
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
         print("[setup] freed MERT model from GPU")
+    elif mert is not None:
+        print("[setup] keeping MERT model resident for generated-audio late-stage supervision")
 
     print(f"[cache] rows={len(index_df)} genres={len(genre_to_idx)}")
 
@@ -897,6 +1045,22 @@ def main() -> None:
     _save_json(state, state_path)
 
     n_genres = len(genre_to_idx)
+    idx_to_genre = {int(v): str(k) for k, v in genre_to_idx.items()}
+    fixed_epoch_source = None
+    if args.epoch_sample_source_file is not None:
+        fixed_epoch_source = _prepare_fixed_source_sample(
+            source_file=Path(args.epoch_sample_source_file),
+            codec=codec,
+            lab1=lab1,
+            device=device,
+            offset_sec=float(args.epoch_sample_offset_sec),
+        )
+        if fixed_epoch_source is not None:
+            print(
+                f"[epoch-sample] prepared source={fixed_epoch_source['source_file']}"
+                f" offset={fixed_epoch_source['offset_sec']:.2f}s"
+            )
+
     train_ds = CachedCodecDataset(arrays=arrays, indices=train_idx)
     train_loader = DataLoader(
         train_ds,
@@ -1198,6 +1362,34 @@ def main() -> None:
     _save_json(style_bank_out, out_dir / "style_bank_diagnostics.json")
     state["style_bank_diagnostics"] = style_bank_out
     _save_json(state, state_path)
+    if fixed_epoch_source is not None:
+        fixed_target_genres = None if args.epoch_sample_target_genres is None else [int(x) for x in args.epoch_sample_target_genres]
+
+        def _epoch_export_callback(stage_cfg: CodecStageTrainConfig):
+            def _cb(stage_name: str, epoch: int, row: Dict) -> None:
+                every = max(1, int(args.epoch_sample_every))
+                if int(epoch) % every != 0:
+                    return
+                _export_fixed_source_epoch_samples(
+                    out_dir=out_dir / "samples" / str(args.epoch_sample_tag),
+                    generator=gen,
+                    codec=codec,
+                    fixed_source=fixed_epoch_source,
+                    style_centroid_bank=style_centroid_bank,
+                    style_exemplar_bank=style_exemplar_bank,
+                    genre_names=idx_to_genre,
+                    stage_name=stage_name,
+                    epoch=int(epoch),
+                    cond_mode=str(stage_cfg.cond_mode),
+                    cond_alpha=float(row.get("cond_alpha", stage_cfg.cond_alpha_end)),
+                    target_genres=fixed_target_genres,
+                    write_source_audio=bool(args.epoch_sample_write_source_audio),
+                )
+
+            return _cb
+    else:
+        def _epoch_export_callback(stage_cfg: CodecStageTrainConfig):
+            return None
     print(
         "[style-bank]"
         f" source={cond_source}"
@@ -1217,6 +1409,7 @@ def main() -> None:
         noise_dim=int(args.translator_noise_dim),
         residual_scale=float(args.translator_residual_scale),
         direct_output=bool(args.translator_direct_output),
+        direct_mix=float(args.translator_direct_mix),
     ).to(device)
     disc = MultiScaleWaveDiscriminator(n_scales=int(args.discriminator_scales)).to(device)
 
@@ -1307,6 +1500,7 @@ def main() -> None:
             resume=(args.mode == "resume"),
             lab1_probe=lab1_probe,
             mert_probe=mert_probe,
+            epoch_callback=_epoch_export_callback(cfg1),
         )
         _append_history(history_path, hist)
         state["stage1_done"] = True
@@ -1321,6 +1515,16 @@ def main() -> None:
                 discriminator=disc,
                 device=device,
             )
+        elif args.mode == "fresh" and args.bootstrap_ckpt is not None:
+            loaded = _load_models_from_ckpt(
+                ckpt_path=Path(args.bootstrap_ckpt),
+                generator=gen,
+                discriminator=disc,
+                device=device,
+            )
+            if not loaded:
+                raise RuntimeError(f"Bootstrap checkpoint not found or unreadable: {args.bootstrap_ckpt}")
+            print(f"[bootstrap] loaded {Path(args.bootstrap_ckpt).name} for stage2")
         state["current_stage"] = "stage2"
         _save_json(state, state_path)
         cfg2 = CodecStageTrainConfig(
@@ -1346,6 +1550,9 @@ def main() -> None:
             delta_budget=float(args.stage2_delta_budget),
             style_loss_mode=str(args.style_loss_mode),
             style_embed_align_weight=float(args.stage2_style_embed_align_weight),
+            generated_mert_every=int(args.stage2_generated_mert_every),
+            generated_mert_weight=float(args.stage2_generated_mert_weight),
+            generated_mert_align_weight=float(args.stage2_generated_mert_align_weight),
         )
         hist = train_codec_stage(
             stage_cfg=cfg2,
@@ -1364,6 +1571,8 @@ def main() -> None:
             resume=(args.mode == "resume" and stage2_ckpt.exists()),
             lab1_probe=lab1_probe,
             mert_probe=mert_probe,
+            mert_model=mert,
+            epoch_callback=_epoch_export_callback(cfg2),
         )
         _append_history(history_path, hist)
         state["stage2_done"] = True
@@ -1385,6 +1594,16 @@ def main() -> None:
                     discriminator=disc,
                     device=device,
                 )
+        elif args.mode == "fresh" and args.skip_stage2 and args.bootstrap_ckpt is not None:
+            loaded = _load_models_from_ckpt(
+                ckpt_path=Path(args.bootstrap_ckpt),
+                generator=gen,
+                discriminator=disc,
+                device=device,
+            )
+            if not loaded:
+                raise RuntimeError(f"Bootstrap checkpoint not found or unreadable: {args.bootstrap_ckpt}")
+            print(f"[bootstrap] loaded {Path(args.bootstrap_ckpt).name} for stage3")
         state["current_stage"] = "stage3"
         _save_json(state, state_path)
         cfg3 = CodecStageTrainConfig(
@@ -1412,6 +1631,9 @@ def main() -> None:
             delta_budget=float(args.stage3_delta_budget),
             style_loss_mode=str(args.style_loss_mode),
             style_embed_align_weight=float(args.stage3_style_embed_align_weight),
+            generated_mert_every=int(args.stage3_generated_mert_every),
+            generated_mert_weight=float(args.stage3_generated_mert_weight),
+            generated_mert_align_weight=float(args.stage3_generated_mert_align_weight),
         )
         hist = train_codec_stage(
             stage_cfg=cfg3,
@@ -1430,6 +1652,8 @@ def main() -> None:
             resume=(args.mode == "resume" and stage3_ckpt.exists()),
             lab1_probe=lab1_probe,
             mert_probe=mert_probe,
+            mert_model=mert,
+            epoch_callback=_epoch_export_callback(cfg3),
         )
         _append_history(history_path, hist)
         state["stage3_done"] = True

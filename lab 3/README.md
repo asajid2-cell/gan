@@ -2,6 +2,10 @@
 
 Lab 3 turns the frozen analysis stack into a generative synthesis stack.
 
+If you are starting fresh after the earlier codec/diffusion tuning cycle, use the reset workspace in
+`lab 3.1/` first. That path is notebook-first and is intended to audit the old runs before launching
+new from-scratch training.
+
 ## Objective
 
 Build a conditional Reconstruction Decoder that takes:
@@ -70,7 +74,7 @@ python run_lab3.py --smoke
 
 Notebook runner:
 
-`lab 3/lab3_reconstruction_decoder.ipynb`
+`lab 3/notebooks/04_lab3_reconstruction_decoder.ipynb`
 
 Full run example:
 
@@ -97,6 +101,75 @@ cd "lab 3"
 python run_lab3_codec.py --smoke
 ```
 
+## Realism-First Checkpoint Supervision
+
+Once a run is already preserving melody and moving style, the next bottleneck is realism.
+Use the realism supervisor to rank checkpoints by naturalness instead of relying on style/content metrics alone.
+
+It evaluates checkpoints on a fixed validation transfer plan and reports:
+
+- `fad_mert` (true Fréchet distance over pretrained MERT embeddings)
+- `target_centroid_mae_norm`
+- `target_hf_mae`
+- `target_lf_mae`
+- `target_dynamic_range_mae_db`
+- plus light transfer checks like `mps` and `style_target_acc`
+
+Codec example:
+
+```powershell
+python "lab 3/run_lab3_realism_sweep.py" codec `
+  --run-dir "saves2/lab3_codec_transfer/run1055" `
+  --n-samples 24
+```
+
+Diffusion example:
+
+```powershell
+python "lab 3/run_lab3_realism_sweep.py" diffusion `
+  --run-dir "saves2/lab3_diffusion/run_d002" `
+  --checkpoints epoch_006.pt best.pt `
+  --n-samples 12
+```
+
+See `lab 3/docs/05_realism_supervisor.md` for the full workflow and gating options.
+
+## Late-Stage Rebuild Tuning
+
+The current bottleneck is no longer basic melody preservation. It is making late-stage codec checkpoints
+move far enough into the target genre without collapsing into robotic artifacts.
+
+Two repo changes now support that workflow directly:
+
+- late-stage generated-audio MERT supervision:
+  - `--stage2-generated-mert-weight`
+  - `--stage3-generated-mert-weight`
+  - `--stage2-generated-mert-align-weight`
+  - `--stage3-generated-mert-align-weight`
+  - `--stage2-generated-mert-every`
+  - `--stage3-generated-mert-every`
+- bootstrap-from-stage1 runs:
+  - `--bootstrap-ckpt`
+  - use this with `--skip-stage1` to tune only stage 2 and stage 3 from a known-good reconstruction checkpoint
+
+Recommended workflow:
+
+1. Reuse a stable stage 1 checkpoint.
+2. Run a short late-stage probe.
+3. Sweep the resulting checkpoints with the realism supervisor.
+4. Promote only a probe config that improves both realism and target-style movement.
+5. Then launch the full late-stage run.
+
+Launchers:
+
+```powershell
+# short late-stage probe from a frozen stage1 checkpoint
+powershell -ExecutionPolicy Bypass -File "lab 3/scripts/start_codec_rebuild_probe.ps1"
+
+# full late-stage rebuild run once a probe config is approved
+powershell -ExecutionPolicy Bypass -File "lab 3/scripts/start_codec_rebuild_full.ps1"
+```
+
 ## Strong Schema (Unpaired-Validity Runs)
 
 If your "genre" labels are coupled to dataset source (common in this project), the model and/or judge can learn
@@ -111,13 +184,13 @@ Helpers (recommended):
 
 ```powershell
 # quick sanity run (cache + judge + style bank + tiny training)
-./scripts/run_codec_strong_schema_smoke.ps1
+./lab 3/scripts/run_codec_strong_schema_smoke.ps1
 
 # full strong-schema run
-./scripts/run_codec_strong_schema_full.ps1
+./lab 3/scripts/run_codec_strong_schema_full.ps1
 
 # audit the latest run for source leakage
-./scripts/run_codec_audit_latest.ps1
+./lab 3/scripts/run_codec_audit_latest.ps1
 ```
 
 ## Auto-Genre (Unpaired Labeling)
@@ -135,7 +208,7 @@ python run_lab3_auto_genre.py --manifests-root "%DGGR_MANIFESTS_ROOT%" --out-csv
 End-to-end helper (CLAP label + train + audit):
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/run_codec_clap_labels_full.ps1
+powershell -ExecutionPolicy Bypass -File "lab 3/scripts/run_codec_clap_labels_full.ps1"
 ```
 
 2. Lab2-style clustering (internal, no text model):
@@ -197,3 +270,9 @@ Controls:
 - `s` skip
 - `o` reopen/replay
 - `q` quit
+
+## Folder Notes
+
+- Notebooks now live under `lab 3/notebooks/`.
+- Helper PowerShell launchers now live under `lab 3/scripts/`.
+- Lab 3 explanation and how-to notes now live under `lab 3/docs/`.

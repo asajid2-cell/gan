@@ -45,7 +45,7 @@ python \"lab 3/run_lab3_diffusion_v2.py\" `
 Run long-form coherence with the V2 epoch 6 checkpoint:
 
 ```powershell
-python \"lab 3/run_lab4_longform_coherence.py\" `
+python \"lab 4/run_lab4_longform_coherence.py\" `
   --cache-dir \"saves2/lab3_diffusion/run_d001/cache\" `
   --checkpoint \"saves2/lab3_diffusion/run_d002/checkpoints/epoch_006.pt\" `
   --out-dir \"saves2/lab4_longform_coherence/repro\" `
@@ -61,4 +61,31 @@ If you hear accumulating warble/static:
 - Reduce `--t-start`
 - Increase `--source-mel-blend` and/or `--hf-source-blend`
 - Use `--reanchor-every` (e.g., 8–16)
+## 4) Realism-first checkpoint supervision
 
+When style/content metrics are already acceptable but the audio still sounds robotic, run the realism supervisor.
+
+Codec:
+
+```powershell
+python "lab 3/run_lab3_realism_sweep.py" `
+  codec `
+  --run-dir "saves2/lab3_codec_transfer/run1055" `
+  --n-samples 24
+```
+
+Diffusion:
+
+```powershell
+python "lab 3/run_lab3_realism_sweep.py" `
+  diffusion `
+  --run-dir "saves2/lab3_diffusion/run_d002" `
+  --checkpoints epoch_006.pt best.pt `
+  --n-samples 12
+```
+
+Outputs land under each run's `realism_supervisor/` directory and include:
+
+- ranked CSV summary
+- `*_realism_best.json`
+- the fixed transfer plan used for the sweep

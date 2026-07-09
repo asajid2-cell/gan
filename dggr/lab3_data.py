@@ -90,7 +90,7 @@ def _read_manifest(path: Path) -> pd.DataFrame:
     if "source" not in df.columns:
         df["source"] = path.stem
     # Keep core columns plus any genre-related columns if present (for auto-labeling workflows).
-    keep_core = ["source", "path", "ext", "size_bytes", "is_music"]
+    keep_core = ["source", "path", "ext", "size_bytes", "is_music", "duration_sec"]
     keep_genre = [c for c in df.columns if str(c).startswith("genre")]
     keep = [c for c in (keep_core + keep_genre) if c in df.columns]
     out = df[keep].copy()

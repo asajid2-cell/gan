@@ -1,0 +1,87 @@
+\contentsline {section}{\numberline {1}Opening}{3}{}%
+\contentsline {paragraph}{Talk track}{3}{}%
+\contentsline {paragraph}{Transition}{3}{}%
+\contentsline {paragraph}{Talk track}{3}{}%
+\contentsline {paragraph}{Transition}{3}{}%
+\contentsline {section}{\numberline {2}Part I: General Lecture}{4}{}%
+\contentsline {paragraph}{Talk track}{4}{}%
+\contentsline {paragraph}{Transition}{4}{}%
+\contentsline {paragraph}{Talk track}{4}{}%
+\contentsline {paragraph}{Transition}{4}{}%
+\contentsline {paragraph}{Talk track}{4}{}%
+\contentsline {paragraph}{Transition}{4}{}%
+\contentsline {paragraph}{Equations to mention}{5}{}%
+\contentsline {paragraph}{Equation explanation}{5}{}%
+\contentsline {paragraph}{Talk track}{5}{}%
+\contentsline {paragraph}{Transition}{5}{}%
+\contentsline {paragraph}{Talk track}{5}{}%
+\contentsline {paragraph}{Transition}{6}{}%
+\contentsline {paragraph}{Talk track}{6}{}%
+\contentsline {paragraph}{Transition}{6}{}%
+\contentsline {paragraph}{Talk track}{6}{}%
+\contentsline {paragraph}{Transition}{6}{}%
+\contentsline {paragraph}{Equations to mention}{6}{}%
+\contentsline {paragraph}{Equation explanation}{7}{}%
+\contentsline {paragraph}{Talk track}{7}{}%
+\contentsline {paragraph}{Transition}{7}{}%
+\contentsline {paragraph}{Equations to mention}{7}{}%
+\contentsline {paragraph}{Equation explanation}{7}{}%
+\contentsline {paragraph}{Talk track}{8}{}%
+\contentsline {paragraph}{Transition}{8}{}%
+\contentsline {paragraph}{Equations to mention}{8}{}%
+\contentsline {paragraph}{Equation explanation}{8}{}%
+\contentsline {paragraph}{Talk track}{9}{}%
+\contentsline {paragraph}{Transition}{9}{}%
+\contentsline {paragraph}{Talk track}{9}{}%
+\contentsline {paragraph}{Transition}{9}{}%
+\contentsline {paragraph}{Equations to mention}{9}{}%
+\contentsline {paragraph}{Equation explanation}{10}{}%
+\contentsline {paragraph}{Talk track}{10}{}%
+\contentsline {paragraph}{Transition}{10}{}%
+\contentsline {paragraph}{Equations to mention}{10}{}%
+\contentsline {paragraph}{Equation explanation}{10}{}%
+\contentsline {paragraph}{Talk track}{11}{}%
+\contentsline {paragraph}{Transition}{11}{}%
+\contentsline {paragraph}{Talk track}{11}{}%
+\contentsline {paragraph}{Transition}{11}{}%
+\contentsline {section}{\numberline {3}Part II: DGGR Case Study}{12}{}%
+\contentsline {paragraph}{Talk track}{12}{}%
+\contentsline {paragraph}{Transition}{12}{}%
+\contentsline {paragraph}{Talk track}{12}{}%
+\contentsline {paragraph}{Transition}{12}{}%
+\contentsline {paragraph}{Talk track}{12}{}%
+\contentsline {paragraph}{Transition}{12}{}%
+\contentsline {paragraph}{Talk track}{13}{}%
+\contentsline {paragraph}{Transition}{13}{}%
+\contentsline {paragraph}{Talk track}{13}{}%
+\contentsline {paragraph}{Transition}{13}{}%
+\contentsline {paragraph}{Talk track}{13}{}%
+\contentsline {paragraph}{Transition}{14}{}%
+\contentsline {paragraph}{Talk track}{14}{}%
+\contentsline {paragraph}{Transition}{14}{}%
+\contentsline {paragraph}{Talk track}{14}{}%
+\contentsline {paragraph}{Transition}{14}{}%
+\contentsline {paragraph}{Talk track}{15}{}%
+\contentsline {paragraph}{Transition}{15}{}%
+\contentsline {paragraph}{Equations to mention}{15}{}%
+\contentsline {paragraph}{Equation explanation}{15}{}%
+\contentsline {paragraph}{Talk track}{15}{}%
+\contentsline {paragraph}{Transition}{16}{}%
+\contentsline {paragraph}{Talk track}{16}{}%
+\contentsline {paragraph}{Transition}{16}{}%
+\contentsline {paragraph}{Talk track}{16}{}%
+\contentsline {paragraph}{Transition}{16}{}%
+\contentsline {paragraph}{Talk track}{17}{}%
+\contentsline {paragraph}{Transition}{17}{}%
+\contentsline {paragraph}{Talk track}{17}{}%
+\contentsline {paragraph}{Transition}{17}{}%
+\contentsline {paragraph}{Audio cues}{17}{}%
+\contentsline {paragraph}{Talk track}{18}{}%
+\contentsline {paragraph}{Transition}{18}{}%
+\contentsline {paragraph}{Audio cues}{18}{}%
+\contentsline {paragraph}{Talk track}{18}{}%
+\contentsline {paragraph}{Transition}{18}{}%
+\contentsline {paragraph}{Talk track}{19}{}%
+\contentsline {paragraph}{Transition}{19}{}%
+\contentsline {paragraph}{Talk track}{19}{}%
+\contentsline {paragraph}{Transition}{19}{}%

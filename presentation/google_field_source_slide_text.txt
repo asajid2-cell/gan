@@ -1,0 +1,100 @@
+SLIDE 1: Musical Style Transfer || Sahara Kaul, Ahmed Sajid, Kelsey Pattison
+SLIDE 2: Introduction
+SLIDE 3: Style Transfer || What is style transfer? || To take the content of something and express it in the style of another
+SLIDE 4: Style Transfer || Content || Style || Output
+SLIDE 5: Musical Style Transfer || Demo
+SLIDE 6: Style vs Content || Style: Timbre/tone quality, instrumentation, dynamics, tempo  /  /  / Content: melody, rhythm, structure
+SLIDE 7: The Challenge || Separating style and content is not simple || Unlike images, where content and style can be separated visually, in music they are deeply intertwined and audio signals are complex and high dimensional.
+SLIDE 8: Audio Representations || Audio can be represented as: /  / MIDI  /  / Spectrogram/mel spectrogram /  / Raw waveforms
+SLIDE 9: Audio Representations || MIDI /  / A MIDI file stores information about notes but not specific sounds / small file size / easy manipulation / some information lost
+SLIDE 10: Audio Representations || Raw waveforms /  / X-axis represents time / Y-axis represents displacement of air molecules / The oscillation frequency represents pitch / Wave shape represents timbre
+SLIDE 11: Audio Representations || Spectrogram  /  / Commonly used in style transfer model architectures / X-axis represents time / Y-axis represents frequency / Color intensity represents amplitude / Calculated from raw waveforms using Short Time Fourier Transform
+SLIDE 12: Short Time Fourier Transform || Fourier Transform
+SLIDE 13: Early Audio Generation Background
+SLIDE 14: WaveNet || First AI model to generate  / music and natural sounding / speech  / Based on PixelCNN / Autoregressive  / Predicts one sample given the previous sample(s) / SLOW!!
+SLIDE 15: General Adversarial Networks
+SLIDE 16: WaveGAN || First AI model to generate  / music and natural sounding / speech  / Based on PixelCNN / Autoregressive  / Predicts one sample given the previous sample(s) / SLOW!!
+SLIDE 17: Exploring music || 01 || You can describe the topic of the section here || Singing || 02 || 04 || Table of contents || You can describe the topic of the section here || Playing instruments || 03
+SLIDE 18: Introduction || 01 || You can describe the topic of the section here || Singing || Table of contents || You can describe the topic of the section here || Playing instruments || 03 || You can describe the topic of the section here || Musicians
+SLIDE 19: Whoa! || This can be the part of the presentation where you introduce yourself, write your email… || Next || Previous
+SLIDE 20: Whoa! || This can be the part of the presentation where you introduce yourself, write your email… || Next || Previous
+SLIDE 21: Introduction || You can give a brief description of the topic you want to talk about here. For example, if you want to talk about Mercury, you can say that it’s the smallest planet in the entire Solar System || Next || Previous
+SLIDE 22: About composition || Mars || Despite being red, Mars is actually a cold place. It’s full of iron oxide dust || Venus || Venus has a beautiful name and is the second planet from the Sun || Mercury || It’s the closest planet to the Sun and the smallest in the Solar System || Next || Previous
+SLIDE 23: Exploring music || You can enter a subtitle here if you need it || 01. || Next || Previous || Home
+SLIDE 24: Rhythm || Neptune is the fourth-largest planet || Texture || Venus is the second planet from the Sun || Expression || Despite being red, Mars is actually a cold place || Form || Mercury is the closest planet to the Sun || Dynamics || Saturn is a gas giant and has several rings
+SLIDE 25: About the music || Mercury || Mercury is the closest planet to the Sun and the smallest one in the Solar System || Venus || Venus has a beautiful name and is the second planet from the Sun || Next || Previous
+SLIDE 26: Awesome music || Next || Previous
+SLIDE 27: Awesome music || Next || Previous
+SLIDE 28: The treble clef || Treble clef is a musical sign that tells us which notes correspond to the various lines and spaces. It’s written at the beginning of the staff || Now try and draw the treble clef || Next || Previous
+SLIDE 29: Musical elements || Mercury || It’s the smallest planet in the Solar System || Venus || Venus is the second planet from the Sun || Jupiter || Jupiter is the biggest planet of them all || Saturn || It’s composed of hydrogen and helium || Mars
+SLIDE 30: Beat || Rhythm || It’s the speed at which a piece of music is played. An example of beat is the beating of a heart, steady, it doesn’t change || It’s the pattern of sound, and stress in a song. It refers to the repetition of notes and can be long or short || Beat and rhythm || Next || Previous
+SLIDE 31: Evolutionary musicology || Mars || Despite being red, Mars is a cold place || Venus || Venus is the second planet from the Sun || Jupiter || It’s the biggest planet in the Solar System || Saturn || Saturn is a gas giant and has several rings || Next
+SLIDE 32: String || Despite being red, Mars is actually a cold place || Wind || Mercury is the closest planet to the Sun || Percussion || Neptune is the farthest planet from the Sun || Families of musical instruments || Next || Previous
+SLIDE 33: Oral and aural tradition || Mercury || It’s the closest planet to the Sun and the smallest in the Solar System || Venus || Venus has a beautiful name and is the second planet from the Sun || Mars || Despite being red, Mars is actually a cold place. It’s full of iron oxide dust || 01 || 02 || 03
+SLIDE 34: —SOMEONE FAMOUS || “This is a quote, words full of wisdom that someone important said and can make the reader get inspired.” || Next || Previous
+SLIDE 35: —SOMEONE FAMOUS || “This is a quote, words full of wisdom that someone important said and can make the reader get inspired.” || Next || Previous
+SLIDE 36: Music elements || Do you know what helps you make your point clear?Lists like this one: / They’re simple  / You can organize your ideas clearly / You’ll never forget to buy milk! / And the most important thing: the audience won’t miss the point of your presentation || Next || Previous
+SLIDE 37: Mercury || It’s the smallest planet in the Solar System || Venus || Venus is the second planet from the Sun || Mars || Mars is actually a very cold place || Jupiter || Jupiter is the biggest planet of them all || Improvisation || Saturn
+SLIDE 38: Notes quiz || Next || Previous
+SLIDE 39: Calendar of activities || Venus || Venus has a beautiful name and is the second planet from the Sun || Notes || Mars || Despite being red, Mars is actually a cold place. It’s full of iron oxide dust || Next || Previous
+SLIDE 40: Answer the correct questions: || What is a musical instrument? || What are the three families of instruments? || Next || Previous
+SLIDE 41: Notation importance || Venus is the second planet from the Sun || Venus || It’s the biggest planet in the Solar System || Jupiter || Despite being red, Mars is a cold place || Mars || Saturn is a gas giant and has several rings || Saturn || Next
+SLIDE 42: 150,000 || Big numbers catch your audience’s attention || Next || Previous
+SLIDE 43: 150,000 || Big numbers catch your audience’s attention || Next || Previous
+SLIDE 44: A PICTURE IS WORTH A THOUSAND WORDS || Next || Previous
+SLIDE 45: A PICTURE IS WORTH A THOUSAND WORDS || Next || Previous
+SLIDE 46: Singing || 02 || You can enter a subtitle here if you need it || Next || Previous || Home
+SLIDE 47: High and low sound || A high sound is a sound that we produce or hear with great force || A low sound is a sound that we make or hear very soft or light || Circle what makes high sounds in red and what makes low sounds in blue || Next || Previous
+SLIDE 48: Vibration and tone || Mercury || It’s the closest planet to the Sun and the smallest of them all || Venus || Venus has a beautiful name and is the second planet from the Sun || Saturn || Saturn is a gas giant and has several rings || Mars || Mars is actually a cold place. It’s full of iron oxide dust || Next
+SLIDE 49: 10,000 || Despite being red, Mars is actually a cold place || 9,000 || Saturn is a gas giant and it also has several rings || 20,000 || Mercury is the closest planet to the Sun || Next || Previous
+SLIDE 50: Key numbers || 333,000 || The Sun’s mass compared to Earth’s || 9h 55m 23s || Jupiter's rotation period || Next || Previous
+SLIDE 51: Musical rhythm || Interpret the rhythm sequences. Mark the course with the palms, each course at a time. With the voice we will name the sounds || ♩   ♩   ♩   ♩ || ♩   ♩   ♫   ♩ || ♩  ♫    ♫   ♩ || ♫   ♩   ♩   ♫ || ta || ta || ta || ta
+SLIDE 52: Learning process || Mercury is quite a small planet || Mercury || Mars is actually a cold place || Mars || Neptune is far away from us || Neptune || Venus has a beautiful name || Venus || Jupiter is the biggest planet
+SLIDE 53: Playing instruments || 03 || You can enter a subtitle here if you need it || Next || Previous || Home
+SLIDE 54: Pitch || Mercury is the closest planet to the Sun || Duration || Saturn is a gas giant and has several rings || Intensity || Neptune is the farthest planet from the Sun || Timbre || Jupiter is the biggest planet of them all || Characteristics of musical sound || Next
+SLIDE 55: Next || Previous || A PICTURE ALWAYS REINFORCES THE CONCEPT || Images reveal large amounts of data, so remember: use an image instead of a long text. Your audience will appreciate it
+SLIDE 56: Naming musical instruments || Match each name with the correct instrument || Next || Previous
+SLIDE 57: Emergence of musicians || Follow the link in the graph to modify its data and then paste the new one here. For more info, click here || Mercury || It’s the closest planet to the Sun and the smallest of them all || Venus || Venus has a beautiful name, but also high temperatures || Next || Previous
+SLIDE 58: Tablet app || You can replace the image on the screen with your own work. Just right-click on it and select “Replace image” || Next || Previous
+SLIDE 59: Desktop software || You can replace the image on the screen with your own work. Just right-click on it and select “Replace image” || Next || Previous
+SLIDE 60: Mobile web || You can replace the image on the screen with your own work. Just right-click on it and select “Replace image” || Next || Previous
+SLIDE 61: Favorite instruments || Neptune is the fourth-largest planet || Neptune || Saturn is a gas giant and has rings || Saturn || Mars is actually a very cold place || Mars || 15% || 35% || 50%
+SLIDE 62: Class 1 || Classroom progress || 15% || Mercury is the closest planet to the Sun || Class 2 || 55% || Neptune is the farthest planet from the Sun || Class 3 || 75% || Jupiter is the biggest planet of them all
+SLIDE 63: 60% || Favorite instruments || 40% || Mercury is the closest planet to the Sun and the smallest one in the Solar System—it’s only a bit larger than the Moon || Venus has a beautiful name and is the second planet from the Sun. It’s hot and has a poisonous atmosphere || Next || Previous
+SLIDE 64: Piano keyboard || Despite being red, Mars is actually a cold place || Mars || Saturn is a gas giant and has several rings || Saturn || Neptune is the fourth-largest planet || Neptune || Next || Previous
+SLIDE 65: Measuring instrument || Next || Previous
+SLIDE 66: Our team of musicians || Jenna Doe || You can talk a bit about this person here || Timmy Jimmy || You can talk a bit about this person here || Next || Previous
+SLIDE 67: John Smith || You can speak a bit about this person here || Pete Bones || You can speak a bit about this person here || Jenna Doe || You can speak a bit about this person here || Susan Doe || You can speak a bit about this person here || Our principal teachers || Next
+SLIDE 68: Musicians || 04 || You can enter a subtitle here if you need it || Next || Previous || Home
+SLIDE 69: About the tones || 05. || You can enter a subtitle here if you need it || Next || Previous || Home
+SLIDE 70: Musicians’ origins || Despite being red, Mars is actually a cold place || Mars || Saturn is a gas giant and has several rings || Saturn || Neptune is the fourth-largest planet || Neptune || Next || Previous
+SLIDE 71: Learning centers || It’s the closest planet to the Sun and the smallest in the Solar System || Mercury || Venus has a beautiful name and is the second planet from the Sun || Venus || Despite being red, Mars is actually a cold place. It’s full of iron oxide dust || Mars || Next || Previous
+SLIDE 72: Famous musicians || Frederic Chopin || Despite being red, Mars is actually a cold place || Giuseppe Verdi || Mercury is the closest planet to the Sun || Beethoven || Neptune is the farthest planet from the Sun || 1770 || 1810 || 1813
+SLIDE 73: Saturn || Saturn is the / ringed planet || Jupiter || Jupiter is the biggest planet || Neptune || Neptune is far away from us || Process in music || Next || Previous
+SLIDE 74: Thanks! || Do you have any questions? / youremail@freepik.com             / +91  620 421 838  I  yourwebsite.com || Please keep this slide for attribution || Next || Previous
+SLIDE 75: Icon pack || Next || Previous
+SLIDE 76: Alternative resources || Next || Previous
+SLIDE 77: Premium alternative resources || Here’s an assortment of alternative resources whose style fits that of this template: / Little girl learning how to play the cello at home / Pretty teenage girl wearing hat playing guitar at home / Portrait of a girl singing song with microphone / Cute girl listening to music and dancing / Close-up of boys' hand playing piano keys / Young boy reading with copy-space / Top view boy listening music on headphones / Grandma and girl listening music at home / Girl with ice cream licking fingers / Girl enjoying music throw headphones || Next || Previous
+SLIDE 78: Premium alternative resources || Here’s an assortment of alternative resources whose style fits that of this template: / Music festival background in flat style || Next || Previous
+SLIDE 79: Alternative infographics || Venus is the second planet from the Sun || Venus || Despite being red, Mars is actually a cold place || Mars || It’s the biggest planet in the Solar System || Jupiter || Saturn is a gas giant and has several rings || Saturn || Next
+SLIDE 80: Alternative infographics || Mercury is the smallest planet of them all || Mercury || Neptune is the farthest planet from the Sun || Neptune || Saturn is composed of hydrogen and helium || Saturn || Jupiter is a gas giant and the biggest planet || Jupiter || Next
+SLIDE 81: Resources || Did you like the resources on this template? / Get them for free at our other websites: /  / Vectors: / Grunge background of small paint spots / Hand drawn abstract element pattern / Hand drawn international jazz day poster template / Hand drawn international jazz day illustration / Hand drawn international jazz day background / Hand drawn reggae instruments music festival poster / Hand drawn music festival poster || Photos: / Kid playing with a musical game / Young child learning how to play the electronic keyboard / Minimalist concept with wooden walls and classic guitar / Young children learning how to play piano / Little girl learning how to sing at home / Top view of female musician playing piano keyboard / Tutor and boy learning a musical instrument / Side view of student and guitar teacher at home  / Man standing and trying to learn the musical instrument / Tutor and boy learning how to play guitar || Next || Previous
+SLIDE 82: Premium resources || Top view boy listening music on headphones / Enthusiastic child playing guitar /  / Vectors: / Set of hand drawn arrows / Map of europe with flags / Home logotype /  / Icons: / Music flat icon || Did you like the resources on this template? Get them for free at our other websites: || Photos: / Young woman with headphones / Portrait of a teenage boy listening to music  and smiling / Portrait of young teenage girl in overalls rocking to music on her headphones / African american man listening to music on headphones / Rear view of boy playing classical piano / Blonde boy playing piano at home / Little girl playing acoustic guitar on bar chair / Two boys playing guitar in front of their mother / Little girl singing while listening music through headphones / Front view of boy playing with xylophone || Previous
+SLIDE 83: Instructions for use || In order to use this template, you must credit Slidesgo by keeping the Thanks slide. / You are allowed to: / - Modify this template. / - Use it for both personal and commercial projects. / You are not allowed to: / - Sublicense, sell or rent any of Slidesgo Content (or a modified version of Slidesgo Content). / - Distribute Slidesgo Content unless it has been expressly authorized by Slidesgo. / - Include Slidesgo Content in an online or offline database or file. / - Offer Slidesgo templates (or modified versions of Slidesgo templates) for download. / - Acquire the copyright of Slidesgo Content. || For more information about editing slides, please read our FAQs or visit Slidesgo School: / https://slidesgo.com/faqs and https://slidesgo.com/slidesgo-school
+SLIDE 84: As a Premium user, you can use this template without attributing Slidesgo or keeping the "Thanks" slide. / You are allowed to: / Modify this template. / Use it for both personal and commercial purposes. / Hide or delete the “Thanks” slide and the mention to Slidesgo in the credits. / Share this template in an editable format with people who are not part of your team. / You are not allowed to: / Sublicense, sell or rent this Slidesgo Template (or a modified version of this Slidesgo Template). / Distribute this Slidesgo Template (or a modified version of this Slidesgo Template) or include it in a database or in any other product or service that offers downloadable images, icons or presentations that may be subject to distribution or resale. / Use any of the elements that are part of this Slidesgo Template in an isolated and separated way from this Template. / Register any of the elements that are part of this template as a trademark or logo, or register it as a work in an intellectual property registry or similar. || For more information about editing slides, please read our FAQs or visit Slidesgo School: / https://slidesgo.com/faqs and https://slidesgo.com/slidesgo-school || Instructions for use (premium users)
+SLIDE 85: Fonts & colors used || This presentation has been made using the following fonts: || Poppins / (https://fonts.google.com/specimen/Poppins) /  / Lato / (https://fonts.google.com/specimen/Lato) || #e2e6b3 || #19264d || #e9ad0d || #fffae1 || #887107 || #e0c357 || #bdd58a
+SLIDE 86: Storyset || Create your Story with our illustrated concepts. Choose the style you like the most, edit its colors, pick the background and layers you want to show and bring them to life with the animator panel! It will boost your presentation. Check out how it works. || Pana || Amico || Bro || Rafiki || Cuate
+SLIDE 87: You can easily resize these resources without losing quality. To change the color, just ungroup the resource and click on the object you want to change. Then, click on the paint bucket and select the color you want. Group the resource again when you’re done. You can also look for more infographics on Slidesgo. || Use our editable graphic resources...
+SLIDE 88: [no text]
+SLIDE 89: [no text]
+SLIDE 90: [no text]
+SLIDE 91: [no text]
+SLIDE 92: [no text]
+SLIDE 93: ...and our sets of editable icons || You can resize these icons without losing quality. / You can change the stroke and fill color; just select the icon and click on the paint bucket/pen. / In Google Slides, you can also use Flaticon’s extension, allowing you to customize and add even more icons.
+SLIDE 94: Educational Icons || Medical Icons
+SLIDE 95: Business Icons || Teamwork Icons
+SLIDE 96: Help & Support Icons || Avatar Icons
+SLIDE 97: Creative Process Icons || Performing Arts Icons
+SLIDE 98: Nature Icons
+SLIDE 99: SEO & Marketing Icons
+SLIDE 100: [no text]

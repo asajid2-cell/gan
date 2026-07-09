@@ -1,0 +1,233 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{parskip}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{hyperref}
+
+\definecolor{Ink}{HTML}{1F2937}
+\definecolor{Muted}{HTML}{6B7280}
+\definecolor{Teal}{HTML}{147A73}
+\definecolor{Gold}{HTML}{C27D38}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=Teal,
+  urlcolor=Teal
+}
+
+\setlist[itemize]{topsep=4pt,itemsep=4pt,leftmargin=1.4em}
+
+\title{General Field Presentation\\Formula Reference}
+\author{Sahara Kaul \and Kelsey Pattison \and Ahmed Sajid}
+\date{CMPUT 414, Winter 2026}
+
+\begin{document}
+\color{Ink}
+\maketitle
+\tableofcontents
+\newpage
+
+\section{How To Use This Document}
+
+This handout collects the main formulas that are relevant to the current general field presentation. For each one, the goal is not only to show the equation, but also to explain:
+
+\begin{itemize}
+\item what each variable means,
+\item what the formula is doing mathematically,
+\item and what the formula means intuitively in the context of music style transfer.
+\end{itemize}
+
+The point is not to turn the presentation into a math lecture. The point is to make the equations feel readable and useful when they appear on slides.
+
+\section{Content Preservation Goal}
+
+\begin{equation*}
+x_{\mathrm{src}} \rightarrow \hat{x}_{\mathrm{tgt}}
+\qquad \text{with} \qquad
+\mathrm{content}(\hat{x}_{\mathrm{tgt}}) \approx \mathrm{content}(x_{\mathrm{src}})
+\end{equation*}
+
+\subsection*{Variables}
+\begin{itemize}
+\item \(x_{\mathrm{src}}\): the source audio.
+\item \(\hat{x}_{\mathrm{tgt}}\): the transformed output audio.
+\item \(\mathrm{content}(\cdot)\): an abstract way of saying ``the musical identity'' of a signal.
+\end{itemize}
+
+\subsection*{What It Means}
+This is not a full probabilistic model. It is a compact statement of the goal of style transfer: start from a source track, produce an output that sounds stylistically different, but keep the underlying musical content approximately the same.
+
+\subsection*{Intuition}
+This is the shortest possible way to say what the entire field is trying to do. If the output changes the style but destroys the melody or phrase identity, the transfer failed. If the output preserves the content but barely changes the sound world, the transfer also failed.
+
+\section{Short-Time Fourier Transform}
+
+\begin{equation*}
+X(m,\omega)=\sum_n x[n]\,w[n-m]\,e^{-j\omega n}
+\end{equation*}
+
+\subsection*{Variables}
+\begin{itemize}
+\item \(x[n]\): the original audio signal in the time domain.
+\item \(w[n-m]\): a window function centered around time index \(m\).
+\item \(n\): the time index being summed over.
+\item \(\omega\): angular frequency.
+\item \(X(m,\omega)\): the time-frequency representation at time window \(m\) and frequency \(\omega\).
+\item \(e^{-j\omega n}\): the complex sinusoid used by the Fourier transform.
+\end{itemize}
+
+\subsection*{What It Means}
+The STFT takes a small chunk of audio around time \(m\), applies a window to isolate that chunk, and then computes which frequencies are present in that chunk.
+
+\subsection*{Intuition}
+The regular Fourier Transform tells us which frequencies exist in the signal overall, but it loses time information. The STFT fixes that by asking: what frequencies are present \emph{right now}? Stacking those answers across time gives a spectrogram. This is why spectrogram-based models can often reason about structure more clearly than raw waveform models.
+
+\section{Variational Autoencoder View}
+
+\begin{equation*}
+x \xrightarrow{\text{encoder}} z \xrightarrow{\text{decoder}} \hat{x}
+\end{equation*}
+
+\subsection*{Variables}
+\begin{itemize}
+\item \(x\): the input audio.
+\item \(z\): the latent representation.
+\item \(\hat{x}\): the reconstructed output.
+\end{itemize}
+
+\subsection*{What It Means}
+The encoder compresses the input into a latent code \(z\), and the decoder tries to reconstruct the input from that code.
+
+\subsection*{Intuition}
+This is the basic latent-space idea behind VAEs, MoVE, and the broader latent-audio story. The point of \(z\) is that it gives the model a more compact internal representation than raw waveform space. Even if the latent space is not perfectly disentangled, it can still become a more useful place for editing, interpolation, conditioning, or resynthesis.
+
+\section{FiLM Conditioning}
+
+\begin{equation*}
+\mathrm{FiLM}(F;c)=\gamma(c)\odot F+\beta(c)
+\end{equation*}
+
+\subsection*{Variables}
+\begin{itemize}
+\item \(F\): a feature map inside the network.
+\item \(c\): a conditioning signal, such as a style vector.
+\item \(\gamma(c)\): a learned scale produced from the conditioning vector.
+\item \(\beta(c)\): a learned shift produced from the conditioning vector.
+\item \(\odot\): element-wise multiplication.
+\end{itemize}
+
+\subsection*{What It Means}
+FiLM takes an internal representation \(F\) and modulates it by scaling and shifting the features according to the condition \(c\).
+
+\subsection*{Intuition}
+Instead of giving the target style information only once at the input, FiLM lets that style signal influence many layers of the network. In presentation terms, this is a clean answer to the question: how does the model actually inject style information into generation?
+
+\section{BigVGAN Snake Activation}
+
+\begin{equation*}
+f(x)=x+\frac{1}{\alpha}\sin^2(\alpha x)
+\end{equation*}
+
+\subsection*{Variables}
+\begin{itemize}
+\item \(x\): the input activation.
+\item \(f(x)\): the output activation.
+\item \(\alpha\): a learned parameter controlling the periodic behavior.
+\end{itemize}
+
+\subsection*{What It Means}
+The Snake activation augments a linear term with a periodic sinusoidal term. This helps the network model periodic structure more naturally than a plain ReLU-style activation.
+
+\subsection*{Intuition}
+Audio waveforms are inherently periodic. BigVGAN uses this kind of activation to build more audio-specific inductive bias into the network. So the point of the formula is not to memorize it, but to understand that BigVGAN is trying to make the network more naturally compatible with the structure of sound.
+
+\section{DDPM Forward Corruption Process}
+
+\begin{equation*}
+q(x_t\mid x_0)=\mathcal{N}\!\left(\sqrt{\bar{\alpha}_t}x_0,\,(1-\bar{\alpha}_t)I\right)
+\end{equation*}
+
+\subsection*{Variables}
+\begin{itemize}
+\item \(x_0\): the original clean sample.
+\item \(x_t\): the noisy version of that sample at diffusion step \(t\).
+\item \(q(x_t\mid x_0)\): the distribution of noisy samples at time step \(t\).
+\item \(\bar{\alpha}_t\): the cumulative noise schedule term.
+\item \(I\): the identity matrix.
+\item \(\mathcal{N}(\mu,\Sigma)\): a Gaussian distribution with mean \(\mu\) and covariance \(\Sigma\).
+\end{itemize}
+
+\subsection*{What It Means}
+At each diffusion step, the clean sample \(x_0\) is gradually mixed with Gaussian noise. By the time \(t\) gets large, the sample becomes heavily corrupted.
+
+\subsection*{Intuition}
+This formula describes the ``destruction'' half of diffusion. The model then learns the reverse process: how to start from noisy audio and gradually refine it back into a meaningful sample. For style transfer, that matters because generation becomes iterative and controllable instead of one-shot and fragile.
+
+\section{Classifier-Free Guidance}
+
+\begin{equation*}
+\hat{\epsilon}_{\mathrm{cfg}}=
+\epsilon_{\theta}(x_t,t,\varnothing)+
+w\left[\epsilon_{\theta}(x_t,t,c)-\epsilon_{\theta}(x_t,t,\varnothing)\right]
+\end{equation*}
+
+\subsection*{Variables}
+\begin{itemize}
+\item \(\epsilon_{\theta}(x_t,t,c)\): the model's predicted noise under condition \(c\).
+\item \(\epsilon_{\theta}(x_t,t,\varnothing)\): the model's predicted noise without conditioning.
+\item \(c\): the condition, such as a target style or genre signal.
+\item \(w\): the guidance scale.
+\item \(\hat{\epsilon}_{\mathrm{cfg}}\): the guided noise prediction used during sampling.
+\end{itemize}
+
+\subsection*{What It Means}
+The model combines its unconditional prediction with its conditional prediction, then amplifies the difference between them by a factor \(w\).
+
+\subsection*{Intuition}
+This is the practical control knob for diffusion. If \(w\) is small, the output stays more natural and diverse. If \(w\) is large, the model follows the condition more aggressively. In style-transfer language, this is one of the clearest mathematical expressions of the content-versus-style tradeoff.
+
+\section{SDEdit Source Anchoring}
+
+\begin{equation*}
+x(t)=\alpha(t)x(0)+\sigma(t)z,\qquad z\sim\mathcal{N}(0,I)
+\end{equation*}
+
+\subsection*{Variables}
+\begin{itemize}
+\item \(x(0)\): the original source signal.
+\item \(x(t)\): the noised version of the source at time \(t\).
+\item \(\alpha(t)\): the factor controlling how much of the original signal remains.
+\item \(\sigma(t)\): the factor controlling how much noise is added.
+\item \(z\): Gaussian noise.
+\end{itemize}
+
+\subsection*{What It Means}
+SDEdit starts from an existing source rather than from pure noise. It intentionally corrupts the source by adding controlled noise, then uses the reverse diffusion process to bring it back toward the data manifold.
+
+\subsection*{Intuition}
+This formula captures one of the most style-transfer-relevant ideas in diffusion. If the noise level is low, the output stays close to the source. If the noise level is high, the model is freer to move toward a more target-like sample. So this is a direct mathematical way to express ``preserve the skeleton, but change the sound world.''
+
+\section{Why These Formulas Matter Together}
+
+These equations are not just isolated pieces of math. Together, they tell the story of the presentation:
+
+\begin{itemize}
+\item the content-preservation expression states the field's overall goal,
+\item the STFT explains why spectral representations matter,
+\item the VAE diagram explains why latent space matters,
+\item FiLM explains conditioning,
+\item BigVGAN explains realism at the waveform stage,
+\item DDPM explains progressive generation,
+\item CFG explains controlled steering,
+\item and SDEdit explains source-anchored editing.
+\end{itemize}
+
+So if someone asks why the equations are there, the answer is simple: each one corresponds to a major conceptual bottleneck in music style transfer.
+
+\end{document}

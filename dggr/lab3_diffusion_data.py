@@ -166,6 +166,7 @@ def _flush_shard(
     shard_id: int,
     mel_list: list, chroma_list: list, onset_list: list, beat_list: list,
     zc_list: list, zs_list: list, mert_list: list, gidx_list: list,
+    rows_list: Optional[List[Dict]] = None,
 ) -> None:
     """Flush accumulated chunks to a numbered shard on disk."""
     shard_dir.mkdir(parents=True, exist_ok=True)
@@ -179,6 +180,79 @@ def _flush_shard(
     np.save(shard_dir / f"{tag}_genre_idx.npy", np.asarray(gidx_list, dtype=np.int64))
     if mert_list:
         np.save(shard_dir / f"{tag}_mert_feat.npy", np.stack(mert_list).astype(np.float32))
+    if rows_list is not None:
+        pd.DataFrame(rows_list).to_csv(shard_dir / f"{tag}_index.csv", index=False)
+
+
+def _existing_complete_shards(shard_dir: Path, has_mert: bool) -> List[int]:
+    required = ["mel", "chroma", "onset", "beat", "z_content", "z_style", "genre_idx"]
+    if has_mert:
+        required.append("mert_feat")
+    out: List[int] = []
+    if not shard_dir.exists():
+        return out
+    for mel_path in sorted(shard_dir.glob("shard_*_mel.npy")):
+        parts = mel_path.stem.split("_")
+        if len(parts) < 3:
+            continue
+        try:
+            sid = int(parts[1])
+        except ValueError:
+            continue
+        if all((shard_dir / f"shard_{sid:04d}_{name}.npy").exists() for name in required):
+            out.append(sid)
+    expected = list(range(len(out)))
+    if out[: len(expected)] != expected:
+        raise RuntimeError(f"Non-contiguous cache shards under {shard_dir}: {out[:8]}...")
+    return out
+
+
+def _shard_len(shard_dir: Path, shard_id: int) -> int:
+    arr = np.load(shard_dir / f"shard_{shard_id:04d}_genre_idx.npy", mmap_mode="r")
+    n = int(arr.shape[0])
+    del arr
+    return n
+
+
+def _planned_rows_for_track(
+    rec,
+    *,
+    genre_to_idx: Dict[str, int],
+    chunk_sec: float,
+    max_chunks_per_track: int,
+) -> List[Dict]:
+    p = Path(str(rec["path"]))
+    if not p.exists():
+        return []
+    try:
+        dur = float(rec.get("duration_sec", 0.0) or 0.0)
+    except Exception:
+        dur = 0.0
+    if dur <= 0.0:
+        dur = _duration_seconds(p)
+    if dur < 1.0:
+        return []
+    n_chunks = min(int(max_chunks_per_track), max(1, int(dur // chunk_sec)))
+    if n_chunks == 1:
+        starts = [0.0]
+    else:
+        max_start = max(0.0, dur - chunk_sec)
+        starts = np.linspace(0.0, max_start, n_chunks).tolist()
+    genre = str(rec["genre"])
+    gidx = int(genre_to_idx[genre])
+    rows = []
+    for chunk_id, start_sec in enumerate(starts):
+        rows.append({
+            "path": str(p),
+            "track_id": _track_id(str(p)),
+            "source": str(rec["source"]),
+            "genre": genre,
+            "genre_idx": gidx,
+            "chunk_id": int(chunk_id),
+            "start_sec": float(start_sec),
+            "manifest_file": str(rec.get("manifest_file", "")),
+        })
+    return rows
 
 
 def _merge_shards(shard_dir: Path, n_shards: int, has_mert: bool, final_dir: Path) -> None:
@@ -279,41 +353,78 @@ def build_diffusion_cache(
     zs_buf: List[np.ndarray] = []
     mert_buf: List[np.ndarray] = []
     gidx_buf: List[int] = []
+    rows_buf: List[Dict] = []
 
     mel_running_min = 999.0
     mel_running_max = -999.0
-    shard_id = 0
-    total_chunks = 0
     has_mert = mert is not None
+    existing_shards = _existing_complete_shards(shard_dir, has_mert=has_mert)
+    existing_chunks = sum(_shard_len(shard_dir, sid) for sid in existing_shards)
+    shard_id = len(existing_shards)
+    total_chunks = existing_chunks
+    resume_track_pos = 0
+    resume_chunk_pos = 0
+    if existing_chunks > 0:
+        remaining = int(existing_chunks)
+        print(f"[diffusion-cache] resuming from {len(existing_shards)} shards ({existing_chunks} chunks)")
+        for i, rec in all_df.iterrows():
+            planned = _planned_rows_for_track(
+                rec,
+                genre_to_idx=genre_to_idx,
+                chunk_sec=float(chunk_sec),
+                max_chunks_per_track=int(max_chunks_per_track),
+            )
+            if remaining >= len(planned):
+                rows.extend(planned)
+                remaining -= len(planned)
+                resume_track_pos = int(i) + 1
+                resume_chunk_pos = 0
+                if remaining == 0:
+                    break
+            else:
+                rows.extend(planned[:remaining])
+                resume_track_pos = int(i)
+                resume_chunk_pos = int(remaining)
+                remaining = 0
+                break
+        if remaining != 0:
+            raise RuntimeError(
+                f"Could not reconstruct {existing_chunks} cached rows from manifest; "
+                f"{remaining} chunks were not matched."
+            )
+        print(
+            f"[diffusion-cache] reconstructed index rows through track={resume_track_pos} "
+            f"chunk={resume_chunk_pos}"
+        )
 
     def _maybe_flush():
-        nonlocal shard_id, mel_buf, chroma_buf, onset_buf, beat_buf
+        nonlocal shard_id, mel_buf, chroma_buf, onset_buf, beat_buf, rows_buf
         nonlocal zc_buf, zs_buf, mert_buf, gidx_buf
         if len(mel_buf) >= shard_size:
             _flush_shard(shard_dir, shard_id, mel_buf, chroma_buf, onset_buf,
-                         beat_buf, zc_buf, zs_buf, mert_buf, gidx_buf)
+                         beat_buf, zc_buf, zs_buf, mert_buf, gidx_buf, rows_buf)
             print(f"[diffusion-cache] flushed shard {shard_id} ({len(mel_buf)} chunks)")
             shard_id += 1
             mel_buf, chroma_buf, onset_buf, beat_buf = [], [], [], []
+            rows_buf = []
             zc_buf, zs_buf, mert_buf, gidx_buf = [], [], [], []
 
     for i, rec in all_df.iterrows():
-        p = Path(str(rec["path"]))
-        if not p.exists():
+        if int(i) < int(resume_track_pos):
             continue
-
-        dur = _duration_seconds(p)
-        if dur < 1.0:
+        planned_rows = _planned_rows_for_track(
+            rec,
+            genre_to_idx=genre_to_idx,
+            chunk_sec=float(chunk_sec),
+            max_chunks_per_track=int(max_chunks_per_track),
+        )
+        if not planned_rows:
             continue
-
-        n_chunks = min(int(max_chunks_per_track), max(1, int(dur // chunk_sec)))
-        if n_chunks == 1:
-            starts = [0.0]
-        else:
-            max_start = max(0.0, dur - chunk_sec)
-            starts = np.linspace(0.0, max_start, n_chunks).tolist()
-
-        for chunk_id, start_sec in enumerate(starts):
+        for chunk_id, row in enumerate(planned_rows):
+            if int(i) == int(resume_track_pos) and int(chunk_id) < int(resume_chunk_pos):
+                continue
+            p = Path(str(row["path"]))
+            start_sec = float(row["start_sec"])
             try:
                 y = load_audio_chunk(
                     path=p, sample_rate=DIFFUSION_SR,
@@ -342,21 +453,12 @@ def build_diffusion_cache(
             except Exception:
                 continue
 
-            genre = str(rec["genre"])
-            gidx = int(genre_to_idx[genre])
+            gidx = int(row["genre_idx"])
             mel_running_min = min(mel_running_min, float(mel.min()))
             mel_running_max = max(mel_running_max, float(mel.max()))
 
-            rows.append({
-                "path": str(p),
-                "track_id": _track_id(str(p)),
-                "source": str(rec["source"]),
-                "genre": genre,
-                "genre_idx": gidx,
-                "chunk_id": int(chunk_id),
-                "start_sec": float(start_sec),
-                "manifest_file": str(rec.get("manifest_file", "")),
-            })
+            rows.append(dict(row))
+            rows_buf.append(dict(row))
             mel_buf.append(mel)
             chroma_buf.append(chroma)
             onset_buf.append(onset)
@@ -376,10 +478,11 @@ def build_diffusion_cache(
     # Flush remaining
     if mel_buf:
         _flush_shard(shard_dir, shard_id, mel_buf, chroma_buf, onset_buf,
-                     beat_buf, zc_buf, zs_buf, mert_buf, gidx_buf)
+                     beat_buf, zc_buf, zs_buf, mert_buf, gidx_buf, rows_buf)
         print(f"[diffusion-cache] flushed final shard {shard_id} ({len(mel_buf)} chunks)")
         shard_id += 1
         mel_buf, chroma_buf, onset_buf, beat_buf = [], [], [], []
+        rows_buf = []
         zc_buf, zs_buf, mert_buf, gidx_buf = [], [], [], []
 
     if total_chunks == 0:

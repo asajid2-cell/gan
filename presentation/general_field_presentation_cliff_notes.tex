@@ -1,0 +1,232 @@
+\documentclass[11pt]{article}
+\usepackage[margin=0.8in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{parskip}
+\usepackage{enumitem}
+\usepackage{xcolor}
+
+\definecolor{Ink}{HTML}{1F2937}
+\definecolor{Muted}{HTML}{6B7280}
+
+\setlist[itemize]{topsep=3pt,itemsep=3pt,leftmargin=1.2em}
+
+\title{General Field Presentation\\Cliff Notes}
+\author{Sahara Kaul \and Kelsey Pattison \and Ahmed Sajid}
+\date{CMPUT 414, Winter 2026}
+
+\begin{document}
+\color{Ink}
+\maketitle
+
+\textbf{Purpose}\\
+Quick live-delivery notes. These are for glancing at during the talk, not reading word-for-word.
+
+\textbf{Speaker split}\\
+Kelsey: introduction and core challenges\\
+Sarah: early generation, VAEs, RAVE, MoVE\\
+Ahmed: modern controllable synthesis, diffusion, field trends, conclusion
+
+\section*{Kelsey}
+
+\textbf{Style transfer: what is it?}
+\begin{itemize}
+\item Start with image analogy: preserve scene structure, change rendering style.
+\item In music: preserve content, change timbre, instrumentation, texture, articulation, production character.
+\item Mention demo if using one.
+\end{itemize}
+\textcolor{Muted}{Transition: define content versus style clearly.}
+
+\textbf{Style vs content}
+\begin{itemize}
+\item Content: melody, rhythm, notes, harmonic path, phrase structure.
+\item Style: timbre, instrumentation, texture, dynamics, expressive details.
+\item Same content can sound completely different under a new style.
+\end{itemize}
+\textcolor{Muted}{Transition: now explain why this is harder in music than it sounds.}
+
+\textbf{Why music style transfer is hard}
+\begin{itemize}
+\item Music is multilevel: melody, harmony, texture, production, room, long-range structure all mixed together.
+\item Weak systems create a “coat of paint” result instead of true re-authoring.
+\item Genre is broader than timbre: conventions, groove, production norms, listener expectations.
+\end{itemize}
+\textcolor{Muted}{Transition: one of the key recurring ideas is representation.}
+
+\textbf{Representations}
+\begin{itemize}
+\item Raw waveforms, spectrograms / log-mel, MIDI, learned latent spaces.
+\item Each representation exposes some structure and hides other information.
+\item Representation choice matters as much as architecture choice.
+\end{itemize}
+\textcolor{Muted}{Transition: briefly explain STFT and MIDI as anchor examples.}
+
+\textbf{STFT and MIDI}
+\begin{itemize}
+\item Fourier Transform: what frequencies exist overall.
+\item STFT: what frequencies exist over time, gives a spectrogram.
+\item MIDI is easy to manipulate but weak for final timbral realism.
+\end{itemize}
+\textcolor{Muted}{Transition: this leads to the central field question.}
+
+\textbf{Central field question}
+\begin{itemize}
+\item How do we change the style or genre of a song while keeping the musical identity recognizable?
+\end{itemize}
+\textcolor{Muted}{Transition: answer that by naming the field bottlenecks.}
+
+\textbf{Core challenges}
+\begin{itemize}
+\item Representation problem.
+\item Disentanglement problem.
+\item Realism problem.
+\item Long-form coherence problem.
+\item These bottlenecks give a better field structure than just listing models.
+\end{itemize}
+\textcolor{Muted}{Transition: Sarah picks up with the early audio-generation story.}
+
+\section*{Sarah}
+
+\textbf{WaveNet}
+\begin{itemize}
+\item Early milestone in realistic neural audio.
+\item Autoregressive and slow: one sample at a time.
+\item Important historically, but not a practical direct answer to style transfer.
+\end{itemize}
+\textcolor{Muted}{Transition: this motivates GANs and parallel generation.}
+
+\textbf{Background about GANs}
+\begin{itemize}
+\item Generator makes fake samples; discriminator spots fake vs real.
+\item Often sharper than plain autoencoder outputs.
+\item Training is unstable and highly dependent on representation choice.
+\end{itemize}
+\textcolor{Muted}{Transition: first major audio GAN example is WaveGAN.}
+
+\textbf{WaveGAN}
+\begin{itemize}
+\item Parallel raw-audio generation, 1D convolutions, phase shuffle.
+\item Limits: phase precession and short fixed-length output.
+\item Shows raw waveform GANs are possible, but not enough for robust style transfer.
+\end{itemize}
+\textcolor{Muted}{Transition: GANSynth improves the working space.}
+
+\textbf{GANSynth}
+\begin{itemize}
+\item Generate log-magnitude + instantaneous-frequency spectrograms instead of raw waveform.
+\item More stable than raw phase.
+\item Main lesson: representation choice matters.
+\end{itemize}
+\textcolor{Muted}{Transition: summarize why early generation is only background.}
+
+\textbf{Why early generation is mainly background}
+\begin{itemize}
+\item WaveNet, WaveGAN, and GANSynth explain how neural audio generation developed.
+\item But they do not solve content preservation while changing style.
+\item Combined takeaway: generation is possible, representation matters, true transfer remains unsolved.
+\end{itemize}
+\textcolor{Muted}{Transition: now move into latent structured audio.}
+
+\textbf{VAEs}
+\begin{itemize}
+\item Useful because they expose a latent space.
+\item Problems: posterior collapse, weak bottleneck, sequential complexity.
+\item Latent-space idea still matters for style transfer.
+\end{itemize}
+\textcolor{Muted}{Transition: first talk about RAVE as practical latent audio, then MoVE as more transfer-specific.}
+
+\textbf{RAVE}
+\begin{itemize}
+\item Not a strong disentanglement model, but makes high-quality latent audio practical.
+\item Uses spectral losses, latent sequences, and adversarial sharpening.
+\item Best framed as latent audio infrastructure: encode, manipulate, resynthesize.
+\end{itemize}
+\textcolor{Muted}{Transition: now move to a model that is more directly about transfer.}
+
+\textbf{MoVE}
+\begin{itemize}
+\item Explicitly about many-to-many musical timbre transfer.
+\item Uses VAE latent space, FiLM conditioning, MMD objective.
+\item More transfer-specific than RAVE, but still mainly timbre transfer rather than full genre remastering.
+\end{itemize}
+\textcolor{Muted}{Transition: this latent section matters because it gets much closer to actual style transfer than the older GAN section.}
+
+\section*{Ahmed}
+
+\textbf{Modern controllable synthesis}
+\begin{itemize}
+\item New question: once we have a usable representation and some notion of style, how do we render convincing controllable audio?
+\end{itemize}
+\textcolor{Muted}{Transition: start with BigVGAN and FiLM because they do different jobs.}
+
+\textbf{BigVGAN}
+\begin{itemize}
+\item Universal neural vocoder.
+\item Converts intermediate representation to waveform audio.
+\item Role in the story: realism stage, not transfer logic.
+\end{itemize}
+\textcolor{Muted}{Transition: FiLM is about conditioning, not waveform realism.}
+
+\textbf{FiLM}
+\begin{itemize}
+\item Feature-wise Linear Modulation.
+\item Style vector scales and shifts hidden features.
+\item Good way to inject style information throughout the network.
+\end{itemize}
+\textcolor{Muted}{Transition: now move into diffusion itself.}
+
+\textbf{DDPM}
+\begin{itemize}
+\item Forward noising process, learned reverse denoising process.
+\item More stable than many adversarial setups.
+\item Important because gradual refinement gives more control.
+\end{itemize}
+\textcolor{Muted}{Transition: classifier-free guidance and SDEdit make that control more explicit.}
+
+\textbf{Classifier-Free Guidance}
+\begin{itemize}
+\item Guidance scale \(w\) controls how strongly generation follows the target condition.
+\item Lower guidance preserves naturalness; higher guidance pushes harder toward style.
+\end{itemize}
+\textcolor{Muted}{Transition: SDEdit is the editing version of the same idea.}
+
+\textbf{SDEdit}
+\begin{itemize}
+\item Start from a noised source instead of pure noise.
+\item Lets the model preserve the source skeleton while still changing the sound world.
+\end{itemize}
+\textcolor{Muted}{Transition: this sets up AudioLDM.}
+
+\textbf{AudioLDM}
+\begin{itemize}
+\item Latent diffusion for audio.
+\item Important because diffusion happens in a learned audio latent space instead of raw waveform space.
+\item Strong modern direction for controllable audio transformation and re-authoring.
+\end{itemize}
+\textcolor{Muted}{Transition: now summarize why diffusion is the modern direction.}
+
+\textbf{Why diffusion is the modern generative direction}
+\begin{itemize}
+\item Progressive generation.
+\item Strong conditioning.
+\item Explicit guidance control.
+\item Source anchoring through SDEdit-style editing.
+\end{itemize}
+\textcolor{Muted}{Transition: end by summarizing the overall field movement.}
+
+\textbf{Overview of field trends}
+\begin{itemize}
+\item More useful arc: disentanglement, controllable latent audio, diffusion-based re-authoring, long-form coherence.
+\item Field moved from raw generation toward structured representations and explicit control.
+\end{itemize}
+\textcolor{Muted}{Transition: final lesson.}
+
+\textbf{Conclusion}
+\begin{itemize}
+\item Music style transfer is not just an audio-generation problem.
+\item It is also a structure-preservation, representation, conditioning, synthesis, and coherence problem.
+\item Clean ending: the field is moving from surface transfer toward structure-aware genre reconstruction.
+\end{itemize}
+
+\end{document}

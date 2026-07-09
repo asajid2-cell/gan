@@ -1,0 +1,38 @@
+\contentsline {section}{\numberline {1}Overview}{3}{section.1}%
+\contentsline {section}{\numberline {2}Introduction and Problem Framing}{3}{section.2}%
+\contentsline {subsection}{\numberline {2.1}What is style transfer?}{3}{subsection.2.1}%
+\contentsline {subsection}{\numberline {2.2}Content versus style in music}{3}{subsection.2.2}%
+\contentsline {subsection}{\numberline {2.3}Why music style transfer is harder than it sounds}{4}{subsection.2.3}%
+\contentsline {subsection}{\numberline {2.4}A short note on representations}{4}{subsection.2.4}%
+\contentsline {paragraph}{Fourier Transform and STFT}{4}{section*.2}%
+\contentsline {paragraph}{MIDI versus audio}{4}{section*.3}%
+\contentsline {subsection}{\numberline {2.5}The central field question}{5}{subsection.2.5}%
+\contentsline {section}{\numberline {3}Core Challenges in Music Style Transfer}{5}{section.3}%
+\contentsline {subsection}{\numberline {3.1}The representation problem}{5}{subsection.3.1}%
+\contentsline {subsection}{\numberline {3.2}The disentanglement problem}{5}{subsection.3.2}%
+\contentsline {subsection}{\numberline {3.3}The realism problem}{5}{subsection.3.3}%
+\contentsline {subsection}{\numberline {3.4}The long-form coherence problem}{5}{subsection.3.4}%
+\contentsline {subsection}{\numberline {3.5}Why these challenges matter}{5}{subsection.3.5}%
+\contentsline {section}{\numberline {4}Early Audio Generation Background}{6}{section.4}%
+\contentsline {subsection}{\numberline {4.1}WaveNet}{6}{subsection.4.1}%
+\contentsline {subsection}{\numberline {4.2}Background about GANs}{6}{subsection.4.2}%
+\contentsline {subsection}{\numberline {4.3}WaveGAN}{6}{subsection.4.3}%
+\contentsline {subsection}{\numberline {4.4}GANSynth}{7}{subsection.4.4}%
+\contentsline {subsection}{\numberline {4.5}Why this section is mainly background}{7}{subsection.4.5}%
+\contentsline {section}{\numberline {5}Latent Structured Audio and Style Transfer}{7}{section.5}%
+\contentsline {subsection}{\numberline {5.1}VAEs}{8}{subsection.5.1}%
+\contentsline {subsection}{\numberline {5.2}MoVE}{8}{subsection.5.2}%
+\contentsline {subsection}{\numberline {5.3}RAVE}{8}{subsection.5.3}%
+\contentsline {subsection}{\numberline {5.4}AudioLM}{9}{subsection.5.4}%
+\contentsline {subsection}{\numberline {5.5}Why this section matters more than the GAN section}{9}{subsection.5.5}%
+\contentsline {section}{\numberline {6}Modern Controllable Synthesis and Style Transfer}{10}{section.6}%
+\contentsline {subsection}{\numberline {6.1}BigVGAN}{10}{subsection.6.1}%
+\contentsline {subsection}{\numberline {6.2}FiLM}{10}{subsection.6.2}%
+\contentsline {subsection}{\numberline {6.3}DDPM}{10}{subsection.6.3}%
+\contentsline {subsection}{\numberline {6.4}Classifier-Free Guidance}{11}{subsection.6.4}%
+\contentsline {subsection}{\numberline {6.5}SDEdit}{11}{subsection.6.5}%
+\contentsline {subsection}{\numberline {6.6}AudioLDM}{11}{subsection.6.6}%
+\contentsline {subsection}{\numberline {6.7}Why diffusion is the modern generative direction}{12}{subsection.6.7}%
+\contentsline {section}{\numberline {7}Synthesis of Field Trends}{12}{section.7}%
+\contentsline {section}{\numberline {8}Conclusion}{12}{section.8}%
+\contentsline {section}{\numberline {9}Primary References}{13}{section.9}%

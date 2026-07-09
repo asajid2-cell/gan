@@ -1,0 +1,471 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{parskip}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{enumitem}
+
+\definecolor{Ink}{HTML}{1F2937}
+\definecolor{Muted}{HTML}{6B7280}
+\definecolor{Teal}{HTML}{147A73}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=Teal,
+  urlcolor=Teal,
+  citecolor=Teal
+}
+
+\setlist[itemize]{topsep=4pt,itemsep=4pt,leftmargin=1.3em}
+\setlist[enumerate]{topsep=4pt,itemsep=4pt,leftmargin=1.5em}
+
+\title{General Field Presentation Write-Up\\Music Style Transfer and Genre Remastering}
+\author{Sahara Kaul \and Kelsey Pattison \and Ahmed Sajid}
+\date{CMPUT 414, Winter 2026}
+
+\begin{document}
+\color{Ink}
+\maketitle
+\tableofcontents
+\newpage
+
+\section{Overview}
+
+This write-up is intended as a structured overview of the field of music style transfer and genre remastering. The goal is not simply to list generation models, but to organize the field around its core technical question:
+
+\begin{center}
+\textbf{How does this idea help preserve content while changing style?}
+\end{center}
+
+That question motivates the structure of the discussion:
+
+\begin{enumerate}
+\item what style transfer is,
+\item why music style transfer is hard,
+\item how the field tried to solve that problem,
+\item which modern ideas are actually most relevant,
+\item and what broader trends define the current direction of the field.
+\end{enumerate}
+
+\section{Introduction and Problem Framing}
+
+\subsection{What is style transfer?}
+
+At a high level, style transfer means taking the content of one piece and combining it with the style of another. A common way to explain this is with the image analogy. In an image, the content is the objects and the structure of the scene. The style is the color palette, texture, and brush strokes. A successful image-style transfer output preserves the overall scene but changes the way the scene is rendered.
+
+In music, we keep the same broad idea, but the details are more complicated. Instead of changing color, we want to change things like timbre, instrumentation, texture, articulation, or production quality. The reason people often begin with the image analogy is that it gives an intuitive starting point, but music turns out to be much harder because the factors that define content and style are more deeply entangled.
+
+\subsection{Content versus style in music}
+
+In this context, \textbf{content} is the structure of the music. That includes:
+
+\begin{itemize}
+\item the melody,
+\item the rhythm,
+\item the notes being played,
+\item the broad harmonic path,
+\item and the phrase contour that makes the piece recognizable.
+\end{itemize}
+
+\textbf{Style}, on the other hand, is how that content sounds. That includes:
+
+\begin{itemize}
+\item timbre or tone quality,
+\item instrumentation,
+\item texture,
+\item dynamics,
+\item articulation,
+\item and expressive or production-level details.
+\end{itemize}
+
+So two pieces can share the same content while sounding completely different depending on the style in which that content is expressed.
+
+\subsection{Why music style transfer is harder than it sounds}
+
+The challenge is that music is not organized at only one level. A single audio signal contains melody, harmony, rhythm, performance style, timbre, room acoustics, and production choices all at once. Because these factors are mixed together, changing one of them can easily disturb the others.
+
+This is why weaker systems often produce what the literature criticizes as a ``coat of paint'' result. The output sounds processed, but it does not sound as if it were genuinely re-conceived inside another genre. That distinction matters throughout the field because genre remastering is a deeper task than superficial timbre swapping.
+
+\subsection{A short note on representations}
+
+Another reason this problem is hard is that music can be represented in many different ways:
+
+\begin{itemize}
+\item raw waveform audio,
+\item time-frequency representations like spectrograms,
+\item symbolic formats like MIDI,
+\item or learned latent spaces.
+\end{itemize}
+
+Each representation makes some aspects of the music easier to control and others harder.
+
+\paragraph{Fourier Transform and STFT}
+The Fourier Transform tells us which frequencies are present in a signal overall, but it does not tell us when they occur. The Short-Time Fourier Transform, or STFT, solves that by dividing the audio into short overlapping windows and applying a Fourier Transform to each one. This gives a time-frequency representation, usually shown as a spectrogram.
+
+That matters because many models can reason more effectively over spectral structure than over raw samples.
+
+\paragraph{MIDI versus audio}
+MIDI is also useful to mention because it highlights the gap between symbolic structure and sonic realism. MIDI stores note events and performance instructions, not the final sound itself. That makes it compact and easy to manipulate, but it means a lot of timbral and expressive information is missing. Since our task is audio style transfer rather than symbolic composition, realism matters much more than it would in a MIDI-only system.
+
+\subsection{The central field question}
+
+This introduction leads to the central question of the talk:
+
+\begin{center}
+\textbf{How do we change the style or genre of a song while keeping the musical identity recognizable?}
+\end{center}
+
+That is the thread the rest of the discussion should follow.
+
+\section{Core Challenges in Music Style Transfer}
+
+Before discussing specific models, it helps to identify the main technical bottlenecks. This gives the field overview a clearer structure.
+
+\subsection{The representation problem}
+
+If the model works in the wrong space, style transfer becomes much harder than it needs to be. Raw waveform audio provides maximal fidelity, but it is extremely dense and hard to edit semantically. Spectral spaces expose structure more clearly, but they still require a way back to believable waveform audio. Symbolic spaces preserve structure well but lose timbral realism.
+
+So one central challenge is finding a representation that is expressive enough for music and structured enough for controllable transfer.
+
+\subsection{The disentanglement problem}
+
+The model needs to preserve some factors and change others. That means it needs some notion of content versus style. Without explicit disentanglement, attempts to change timbre or genre can damage melody, rhythm, or phrase structure.
+
+\subsection{The realism problem}
+
+Even if a model preserves the right structure and moves toward the target style, it can still sound bad. Audio is unforgiving. Small errors in phase, attacks, periodic structure, or transitions create artifacts that listeners notice immediately.
+
+\subsection{The long-form coherence problem}
+
+A five-second clip can sound good while a longer piece falls apart. Style-transfer systems therefore need not only local quality, but also consistency over longer spans. That includes continuity at chunk boundaries, stable timbral character, and preservation of musical phrasing.
+
+\subsection{Why these challenges matter}
+
+These four problems give us a better way to organize the field:
+
+\begin{itemize}
+\item early models mostly struggled with representation and realism,
+\item disentanglement methods addressed factor separation,
+\item latent audio models improved controllability,
+\item and diffusion-based methods improved re-authoring and long-form flexibility.
+\end{itemize}
+
+That is a much better story than listing models in isolation.
+
+\section{Early Audio Generation Background}
+
+This section is important as historical context rather than as the center of the style-transfer problem itself.
+
+\subsection{WaveNet}
+
+WaveNet, introduced by DeepMind in 2016, was one of the first major demonstrations that neural networks could generate very realistic audio. It is an autoregressive model built with dilated causal convolutions, which allow it to model long temporal dependencies while only looking at past samples.
+
+WaveNet matters historically because it showed that high-quality neural audio generation was possible. But its weakness is equally important: it generates audio one sample at a time, which makes inference slow and expensive. For style transfer, that means it is not a very practical solution when controllable transformation is needed over meaningful musical spans.
+
+WaveNet is therefore best understood as an early milestone in realism rather than as a direct answer to style transfer.
+
+\subsection{Background about GANs}
+
+Generative Adversarial Networks, or GANs, are built around two networks:
+
+\begin{itemize}
+\item a generator, which produces fake samples,
+\item and a discriminator, which tries to distinguish real samples from fake ones.
+\end{itemize}
+
+The two networks improve together. The generator becomes better at fooling the discriminator, while the discriminator becomes better at spotting unrealistic outputs.
+
+This framework became popular because it often produces sharper outputs than standard autoencoder-style models. However, GANs are also difficult to train stably, and their usefulness depends heavily on the representation in which they operate.
+
+\subsection{WaveGAN}
+
+WaveGAN is one of the first successful GAN-based raw-audio generators. It adapts image-GAN ideas to one-dimensional temporal signals by flattening 2D convolutions into 1D convolutions, increasing the stride, and removing batch normalization.
+
+WaveGAN also introduced \textbf{phase shuffle}, which prevents the discriminator from relying too heavily on trivial phase cues caused by transposed convolutions.
+
+WaveGAN is important because it showed that parallel audio generation was possible. But for style transfer, it still has two major weaknesses:
+
+\begin{itemize}
+\item it struggles with \textbf{phase precession}, which leads to phasey or unnatural outputs,
+\item and it only produces short fixed-length clips, which makes long-form generation and coherent editing difficult.
+\end{itemize}
+
+WaveGAN therefore shows that raw audio GANs were possible, but also why raw waveform generation alone is not enough for robust style transfer.
+
+\subsection{GANSynth}
+
+GANSynth improves on WaveGAN by changing the generation space. Instead of generating raw waveforms directly, it generates:
+
+\begin{itemize}
+\item log-magnitude spectrograms,
+\item and instantaneous frequency (IF) spectrograms.
+\end{itemize}
+
+The reason this helps is that instantaneous frequency is much more stable than raw phase under alignment shifts. The model predicts magnitude and IF, integrates IF to recover unwrapped phase, reconstructs a complex spectrogram, and then applies the inverse STFT to produce waveform audio.
+
+The key lesson for style transfer is that \textbf{representation choice matters}. GANSynth improves realism not because the GAN idea changed fundamentally, but because the model works in a more structured space.
+
+However, these early models still do not solve the style-transfer problem itself. They can be conditioned on instrument or timbral identity, but they do not explicitly guarantee that the original musical content is preserved. In other words:
+
+\begin{itemize}
+\item they are good historical steps in \emph{audio generation},
+\item but they are weak direct solutions to \emph{music style transfer}.
+\end{itemize}
+
+\subsection{Why this section is mainly background}
+
+WaveNet, WaveGAN, and GANSynth are historically important because they explain how neural audio generation developed. But they are not the main intellectual center of the style-transfer field.
+
+Their combined takeaway is:
+
+\begin{enumerate}
+\item raw audio generation was possible,
+\item representation choice matters,
+\item but preserving musical content while changing style remained unsolved.
+\end{enumerate}
+
+\section{Latent Structured Audio and Style Transfer}
+
+This section is much closer to the heart of our actual problem.
+
+\subsection{VAEs}
+
+Variational Autoencoders are attractive because they expose a latent space. An encoder compresses the input into a latent variable \(z\), and a decoder reconstructs the output from that latent code. For style transfer, that is useful because a latent space can provide a structured place in which musical properties might be manipulated.
+
+However, standard VAEs struggle badly with raw audio. The main issues are:
+
+\begin{itemize}
+\item \textbf{posterior collapse}, where the decoder ignores the latent code,
+\item \textbf{weak global bottlenecks}, where one latent vector is too small to represent long audio properly,
+\item and \textbf{sequential complexity}, since raw audio is dense and hard to reconstruct cleanly.
+\end{itemize}
+
+So standard VAEs are not enough, but the latent-space idea remains extremely valuable.
+
+\subsection{MoVE}
+
+MoVE, short for \emph{Modulated Variational auto-Encoders for many-to-many musical timbre transfer}, is much more directly relevant to style transfer than the earlier GAN section.
+
+Its significance is not just that it uses a VAE. The important point is that it was built specifically for \textbf{musical timbre transfer}. It uses FiLM conditioning and a Maximum Mean Discrepancy objective to support many-to-many timbre transfer within a single multi-domain architecture.
+
+MoVE matters because it sits in the middle of the field's transition:
+
+\begin{itemize}
+\item it is no longer just about generic audio generation,
+\item it is explicitly about controllable musical transfer,
+\item and it shows that conditioning and latent-space structure can support many-to-many style change.
+\end{itemize}
+
+At the same time, MoVE is mainly about \textbf{timbre transfer}, not full genre remastering. That makes it very relevant conceptually, but also limited. It helps explain why disentangled and conditioned latent spaces matter, while also showing that timbre transfer alone is still not the full problem.
+
+\subsection{RAVE}
+
+RAVE is one of the most important models for our story because it moves the field much closer to practical controllable audio.
+
+RAVE addresses the major weaknesses of naive audio VAEs in several ways:
+
+\begin{itemize}
+\item it uses spectral losses rather than only raw sample-wise waveform reconstruction,
+\item it uses architectures that are less vulnerable to posterior collapse,
+\item it preserves temporal structure by working with sequences of latent codes rather than one global vector,
+\item it supports high-rate music-quality audio,
+\item and it sharpens decoder quality with an adversarial fine-tuning stage.
+\end{itemize}
+
+Why does this matter for style transfer? Because RAVE makes high-quality latent audio practical. That is a major conceptual shift. Instead of asking only how to generate sound, RAVE makes it more realistic to ask how sound can be edited, transferred, or re-rendered in a structured latent space.
+
+RAVE is especially relevant because the paper explicitly demonstrates applications in timbre transfer. That makes it much more style-transfer-relevant than a generic VAE discussion.
+
+At the same time, it still has limits. The style-transfer behavior is not always an explicit design target, and control can remain somewhat indirect. So RAVE is best presented as a powerful step toward controllable style transfer rather than as the final answer.
+
+\subsection{AudioLM}
+
+AudioLM is not a style-transfer model in the narrow sense, but it is still highly relevant because it addresses a major bottleneck: \textbf{long-term coherence}.
+
+AudioLM treats audio generation as language modeling over discrete audio tokens. Its key contribution is that it separates token streams that capture long-range structure from token streams that capture fine acoustic detail. This lets it generate audio that remains coherent over longer durations than many earlier systems.
+
+For style transfer, AudioLM matters in a very specific way:
+
+\begin{itemize}
+\item it is not primarily about explicit style disentanglement,
+\item but it \emph{is} about preserving meaningful structure over time,
+\item which is exactly one of the hardest downstream problems in genre remastering.
+\end{itemize}
+
+AudioLM is therefore best understood as evidence that modern generative audio is increasingly capable of modeling long-range musical structure. That makes it highly relevant to the long-form side of style transfer and genre remastering.
+
+\subsection{Why this section matters more than the GAN section}
+
+If the earlier WaveNet/WaveGAN/GANSynth section is historical background, this section is where the discussion becomes directly about \textbf{style transfer}.
+
+This is because:
+
+\begin{itemize}
+\item MoVE is explicitly about musical timbre transfer,
+\item RAVE makes controllable latent audio practical,
+\item AudioLM helps with long-term structural coherence,
+\item and all three move the field closer to the actual genre-remastering problem.
+\end{itemize}
+
+\section{Modern Controllable Synthesis and Style Transfer}
+
+This section addresses a specific question: once there is a usable representation and some notion of style, how can convincing, controllable audio actually be rendered?
+
+\subsection{BigVGAN}
+
+BigVGAN is a universal neural vocoder. A vocoder takes an intermediate representation, often a mel-spectrogram, and converts it into a waveform.
+
+This is important because style-transfer models often work in latent or spectral spaces, but listeners only judge the final waveform. If the vocoder is weak, then even a good internal representation can decode into harsh, metallic, or unstable audio.
+
+BigVGAN's importance comes from stronger audio-specific inductive bias. In particular, it introduces periodic activation behavior and anti-aliased upsampling modules. A simplified form of the Snake activation used in this context is:
+
+\begin{equation*}
+f(x)=x+\frac{1}{\alpha}\sin^2(\alpha x)
+\end{equation*}
+
+For style transfer, BigVGAN is not the transfer mechanism itself. It is the \textbf{realism stage}.
+
+\subsection{FiLM}
+
+FiLM, or Feature-wise Linear Modulation, is a general conditioning mechanism:
+
+\begin{equation*}
+\mathrm{FiLM}(F;c)=\gamma(c)\odot F+\beta(c)
+\end{equation*}
+
+Here \(F\) is a feature map and \(c\) is a conditioning vector. The model learns to scale and shift hidden features based on the condition.
+
+Why does that matter for style transfer? Because style information usually should not be injected only once at the input. It should influence multiple layers of the model. FiLM provides a very clean way to let a style vector modulate the generation process throughout the network.
+
+So unlike BigVGAN, FiLM is directly related to \textbf{style-control logic}, not just waveform realism.
+
+\subsection{DDPM}
+
+Denoising Diffusion Probabilistic Models define a forward noising process and a learned reverse denoising process. A standard form of the forward corruption process is:
+
+\begin{equation*}
+q(x_t\mid x_0)=\mathcal{N}\!\left(\sqrt{\bar{\alpha}_t}x_0,\,(1-\bar{\alpha}_t)I\right)
+\end{equation*}
+
+Diffusion matters because it generates by gradual refinement rather than one-shot synthesis. That gives it two big advantages for style transfer:
+
+\begin{itemize}
+\item generation is often more stable than adversarial training,
+\item and the iterative process gives more room for control.
+\end{itemize}
+
+The important point is not just how diffusion works mathematically. The important point is that diffusion is promising because it is a better candidate for \textbf{re-authoring} a sound world while still preserving structure.
+
+\subsection{Classifier-Free Guidance}
+
+Classifier-free guidance, or CFG, gives diffusion a practical control knob:
+
+\begin{equation*}
+\hat{\epsilon}_{\mathrm{cfg}}=
+\epsilon_{\theta}(x_t,t,\varnothing)+
+w\bigl[\epsilon_{\theta}(x_t,t,c)-\epsilon_{\theta}(x_t,t,\varnothing)\bigr]
+\end{equation*}
+
+The key parameter here is \(w\), the guidance scale. Increasing \(w\) pushes the generation more strongly toward the condition.
+
+For style transfer, this matters directly because it turns a vague idea into a concrete control:
+
+\begin{itemize}
+\item lower guidance usually preserves naturalness and diversity,
+\item higher guidance usually pushes harder toward the target style,
+\item and the sweet spot is where the style shift is strong without destroying the content.
+\end{itemize}
+
+\subsection{SDEdit}
+
+SDEdit extends diffusion from generation into editing by starting from a noised version of an existing source rather than pure noise:
+
+\begin{equation*}
+x(t)=\alpha(t)x(0)+\sigma(t)z,\qquad z\sim\mathcal{N}(0,I)
+\end{equation*}
+
+This is one of the most style-transfer-relevant ideas in the whole modern diffusion literature. It directly expresses the tradeoff we care about:
+
+\begin{itemize}
+\item if we stay too close to the source, the result is only a mild edit,
+\item if we let the model move too far, we risk losing the identity of the song.
+\end{itemize}
+
+So SDEdit matters because it gives a principled way to preserve the source skeleton while still allowing meaningful stylistic change.
+
+\subsection{AudioLDM}
+
+AudioLDM is especially important because it makes latent diffusion relevant to style transfer more explicitly. It learns a latent space for audio and shows that latent diffusion can support high-quality controllable generation. Importantly, the paper also demonstrates zero-shot audio manipulation, including style-transfer-like operations.
+
+That makes AudioLDM more directly relevant to style transfer than a generic diffusion tutorial. It suggests that diffusion in a latent audio space is not just good for text-to-audio generation; it is also a serious framework for controllable audio editing and transformation.
+
+\subsection{Why diffusion is the modern generative direction}
+
+Putting these pieces together, diffusion is attractive for genre remastering because it combines:
+
+\begin{itemize}
+\item progressive generation,
+\item strong conditioning,
+\item explicit guidance control,
+\item and source anchoring through SDEdit-style editing.
+\end{itemize}
+
+That is why diffusion should be the center of the modern synthesis section. Not because ``diffusion is trendy,'' but because it fits the style-transfer problem better than many earlier model families.
+
+\section{Synthesis of Field Trends}
+
+Taken together, the field is easier to understand when it is organized around bottlenecks rather than around isolated model names.
+
+WaveNet, WaveGAN, and GANSynth are historically important, but they are not the center of the style-transfer problem. The more relevant arc is:
+
+\begin{enumerate}
+\item disentanglement,
+\item controllable latent audio,
+\item diffusion-based re-authoring,
+\item and long-form coherence.
+\end{enumerate}
+
+Seen this way, the field has gradually moved:
+
+\begin{itemize}
+\item from raw generation toward structured representations,
+\item from generic synthesis toward explicit control,
+\item and from short local realism toward long-form musical coherence.
+\end{itemize}
+
+\section{Conclusion}
+
+The main lesson is that music style transfer is not just an audio-generation problem. It is a structure-preservation problem, a representation problem, a conditioning problem, a synthesis problem, and a coherence problem all at once.
+
+Early waveform models proved that neural audio generation was possible. GANs and spectral models showed that representation choice matters. But they did not solve the core style-transfer question. The field moved much closer to that question once it began to disentangle musical factors, develop structured latent audio models, and build stronger controllable generative systems.
+
+That is why models like MoVE, RAVE, AudioLM, and AudioLDM matter more to a modern field overview than a long explanation of older waveform-generation details. They are closer to the core problem of preserving musical identity while changing style.
+
+So the clean final framing is this:
+
+\begin{center}
+\textbf{The field is moving from surface transfer toward structure-aware genre reconstruction.}
+\end{center}
+
+\section{Primary References}
+
+\begin{itemize}
+\item WaveGAN: Donahue, McAuley, and Puckette, ``Adversarial Audio Synthesis,'' ICLR 2019. \url{https://arxiv.org/abs/1802.04208}
+\item GANSynth: Engel et al., ``GANSynth: Adversarial Neural Audio Synthesis,'' ICLR 2019. \url{https://arxiv.org/abs/1902.08710}
+\item MoVE: Bitton, Esling, and Chemla-Romeu-Santos, ``Modulated Variational auto-Encoders for many-to-many musical timbre transfer,'' 2018. \url{https://arxiv.org/abs/1810.00222}
+\item RAVE: Caillon and Esling, ``RAVE: A variational autoencoder for fast and high-quality neural audio synthesis,'' 2021. \url{https://arxiv.org/abs/2111.05011}
+\item AudioLM: Borsos et al., ``AudioLM: a Language Modeling Approach to Audio Generation,'' 2022. \url{https://arxiv.org/abs/2209.03143}
+\item BigVGAN: Lee et al., ``BigVGAN: A Universal Neural Vocoder with Large-Scale Training,'' ICLR 2023. \url{https://arxiv.org/abs/2206.04658}
+\item FiLM: Perez et al., ``FiLM: Visual Reasoning with a General Conditioning Layer,'' AAAI 2018. \url{https://arxiv.org/abs/1709.07871}
+\item DDPM: Ho, Jain, and Abbeel, ``Denoising Diffusion Probabilistic Models,'' 2020. \url{https://arxiv.org/abs/2006.11239}
+\item CFG: Ho and Salimans, ``Classifier-Free Diffusion Guidance,'' 2022. \url{https://arxiv.org/abs/2207.12598}
+\item SDEdit: Meng et al., ``SDEdit: Guided Image Synthesis and Editing with Stochastic Differential Equations,'' 2021. \url{https://arxiv.org/abs/2108.01073}
+\item AudioLDM: Liu et al., ``AudioLDM: Text-to-Audio Generation with Latent Diffusion Models,'' 2023. \url{https://arxiv.org/abs/2301.12503}
+\end{itemize}
+
+\end{document}

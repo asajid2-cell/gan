@@ -1,0 +1,303 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{parskip}
+\usepackage{amsmath}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{hyperref}
+
+\definecolor{Ink}{HTML}{1F2937}
+\definecolor{Muted}{HTML}{6B7280}
+\definecolor{Teal}{HTML}{147A73}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=Teal,
+  urlcolor=Teal
+}
+
+\setlist[enumerate]{topsep=4pt,itemsep=10pt,leftmargin=1.6em}
+
+\newcommand{\qa}[2]{
+\item \textbf{#1}
+
+\textit{Answer:} #2
+}
+
+\title{General Field Presentation\\Question and Answer Practice Set}
+\author{Sahara Kaul \and Kelsey Pattison \and Ahmed Sajid}
+\date{CMPUT 414, Winter 2026}
+
+\begin{document}
+\color{Ink}
+\maketitle
+
+\section*{How To Use This Document}
+This handout is a practice bank built from the final slide deck. The goal is to cover the kinds of questions that usually come up after a technical presentation: core concepts, model comparisons, intuition behind formulas, and ``why this matters for style transfer'' follow-ups. The answers are intentionally compact, so they are easier to review before presenting.
+
+\tableofcontents
+\newpage
+
+\section{Core Concepts}
+
+\begin{enumerate}
+\qa{What is style transfer in general?}{
+Style transfer means preserving the content of one piece while changing how that content is expressed using the style of another. In images, that usually means keeping the scene layout while changing colors or brush strokes. In music, it means trying to preserve melody, rhythm, or structure while changing timbre, instrumentation, texture, or production character.
+}
+
+\qa{What is the difference between content and style in music?}{
+Content refers to the musical identity of the piece: melody, rhythm, phrase contour, and overall structure. Style refers to how that content sounds: timbre, instrumentation, articulation, dynamics, texture, and production choices. The whole problem is that these two are conceptually distinct but physically entangled inside the same audio signal.
+}
+
+\qa{Why is music style transfer harder than image style transfer?}{
+Music has many interacting layers at once: pitch, rhythm, harmony, instrumentation, room acoustics, mixing, and long-form structure. Unlike images, those factors are not cleanly separated in the signal. So changing one aspect often damages another, which is why audio style transfer is harder and more fragile.
+}
+
+\qa{What does the ``coat of paint'' criticism mean?}{
+It means a system changes the surface sound without really re-authoring the music. The timbre may change, but the arrangement still feels like the original, or the output sounds filtered rather than genuinely rebuilt in a new style. That is a weak form of transfer because it changes texture more than musical identity.
+}
+
+\qa{Why is genre transfer even harder than timbre transfer?}{
+Timbre transfer mostly changes the local sound quality. Genre transfer often requires broader changes in instrumentation, groove, texture, production norms, and sometimes arrangement logic. So genre is more like a structured musical manifold than a single acoustic property.
+}
+
+\qa{What is the central question of the field overview?}{
+The central question is: how do we change the style or genre of a song while keeping the musical identity recognizable? Almost every model in the presentation is one partial answer to that question.
+}
+
+\qa{What are the four main technical bottlenecks in music style transfer?}{
+The four main bottlenecks are representation, disentanglement, realism, and long-form coherence. Representation asks what space the model should work in. Disentanglement asks how to preserve some factors while changing others. Realism asks whether the result actually sounds good. Long-form coherence asks whether the output stays consistent over longer spans.
+}
+
+\qa{Why is disentanglement important for style transfer?}{
+Without disentanglement, changing style can unintentionally change melody, rhythm, or phrase structure. A useful style-transfer system needs some mechanism, explicit or implicit, for deciding what should stay fixed and what should change.
+}
+\end{enumerate}
+
+\section{Representations and Audio Basics}
+
+\begin{enumerate}[start=9]
+\qa{Why does representation matter so much in this field?}{
+Because the choice of representation determines what the model can see and manipulate easily. Raw waveforms preserve full detail but are hard to control semantically. Spectrograms expose frequency structure more clearly. MIDI preserves symbolic structure but loses the final sound. Learned latent spaces try to balance fidelity and controllability.
+}
+
+\qa{What are the main audio representations discussed in the presentation?}{
+The presentation focuses on raw waveforms, spectrograms, MIDI, and learned latent representations. Each is useful for different reasons, and much of the field can be understood as a search for the most useful representation for controllable transfer.
+}
+
+\qa{What does a raw waveform represent?}{
+A raw waveform represents air pressure displacement over time. The x-axis is time, the y-axis is amplitude, and the shape of the waveform contains information about pitch, loudness, and timbre. It is the most direct representation of sound, but also one of the hardest spaces to manipulate meaningfully.
+}
+
+\qa{What does a spectrogram represent?}{
+A spectrogram is a time-frequency representation. The x-axis is time, the y-axis is frequency, and the color intensity shows how strong each frequency is at each moment. It is useful because many musical structures become easier to inspect in frequency space than in raw waveform space.
+}
+
+\qa{What does the Fourier Transform tell us?}{
+The Fourier Transform tells us which frequencies exist in a signal overall. It decomposes a signal into sinusoidal components, but it does not tell us when those frequencies happen in time.
+}
+
+\qa{Why do we need the STFT instead of just the Fourier Transform?}{
+The regular Fourier Transform loses time information because it analyzes the whole signal at once. The STFT fixes that by slicing the signal into short overlapping windows and taking a Fourier Transform of each one. That is what lets us see how frequency content changes over time.
+}
+
+\qa{Why are spectrograms common in style-transfer work?}{
+They expose harmonic and temporal structure more clearly than raw waveforms, and many models can learn more easily from that structure. They also make it easier to reason about timbre and frequency content, which are central to style transfer.
+}
+
+\qa{What is MIDI, and why is it useful?}{
+MIDI is a symbolic music format that stores note events, durations, velocities, and controller messages rather than audio itself. It is useful because it is compact and easy to manipulate, especially for composition or symbolic generation tasks.
+}
+
+\qa{Why is MIDI not enough for audio style transfer?}{
+MIDI captures musical events but not the final sound. It does not directly represent timbre, room acoustics, production effects, or detailed performance texture. Since audio style transfer depends heavily on those details, working only in MIDI loses too much relevant information.
+}
+\end{enumerate}
+
+\section{Early Audio Generation Background}
+
+\begin{enumerate}[start=17]
+\qa{Why do we talk about early audio generation models at all if they are not the final answer?}{
+Because they establish the main early lessons of the field. WaveNet showed that realistic neural audio generation was possible. WaveGAN showed that parallel generation was possible. GANSynth showed that representation choice matters. Those are important historical steps even if they do not fully solve style transfer.
+}
+
+\qa{What is WaveNet, and why was it important?}{
+WaveNet is an autoregressive neural audio model that predicts one sample at a time using dilated causal convolutions. It was important because it demonstrated very high-quality neural audio generation early on, especially for speech and some music tasks.
+}
+
+\qa{Why is WaveNet not a practical style-transfer solution?}{
+Because it is autoregressive and generates audio sample by sample, which is slow and expensive. That makes it hard to use for controllable transformation over longer musical spans, even if the local audio quality is strong.
+}
+
+\qa{What is a GAN in simple terms?}{
+A GAN has two networks: a generator that tries to create fake samples and a discriminator that tries to tell real and fake samples apart. Training works like a competition, where the generator improves by learning to fool the discriminator.
+}
+
+\qa{Why were GANs attractive for audio generation?}{
+They offered parallel generation and often sharper outputs than basic autoencoder-style models. That made them attractive as an alternative to slow autoregressive generation, especially when realism and speed were both important.
+}
+
+\qa{What is WaveGAN?}{
+WaveGAN is one of the first successful GAN-based raw-audio generators. It adapts GAN ideas from images to one-dimensional waveform signals, showing that direct raw-audio generation with GANs is possible.
+}
+
+\qa{What is phase shuffle in WaveGAN?}{
+Phase shuffle is a training trick that randomly shifts discriminator activations slightly in time. Its purpose is to stop the discriminator from relying too heavily on trivial phase artifacts caused by transposed convolutions, forcing it to focus on more meaningful cues.
+}
+
+\qa{What is phase precession, and why is it a problem in WaveGAN?}{
+Phase precession happens when the stride in the generator does not align well with the periodic structure of the waveform. Over time, that mismatch causes frequencies that should line up harmonically to drift out of sync, which makes the audio sound phasey or unnatural.
+}
+
+\qa{Why is WaveGAN limited for style transfer?}{
+It struggles with phase coherence, produces short fixed-length clips, and does not explicitly preserve the musical content of a source example. So even though it is historically important, it is weak as a direct style-transfer system.
+}
+
+\qa{How does GANSynth improve on WaveGAN?}{
+GANSynth changes the generation space. Instead of generating raw waveforms directly, it generates log-magnitude spectrograms and instantaneous-frequency spectrograms, then reconstructs audio from those. This gives the model a more structured representation and improves realism.
+}
+
+\qa{Why is instantaneous frequency useful in GANSynth?}{
+Instantaneous frequency is more stable than raw phase under alignment changes. By predicting instantaneous frequency and integrating it to recover phase, GANSynth gets more coherent waveform structure than raw waveform GANs typically do.
+}
+
+\qa{What is the main lesson from WaveNet, WaveGAN, and GANSynth together?}{
+The combined lesson is that neural audio generation is possible, but raw realism alone is not enough for style transfer. The field also needs better representations and better ways to preserve source content while changing style.
+}
+\end{enumerate}
+
+\section{Latent Audio and Transfer}
+
+\begin{enumerate}[start=29]
+\qa{What is a VAE in the context of audio?}{
+A VAE is a model that encodes audio into a latent representation and then decodes it back into a reconstruction. The key idea is that the latent space may be easier to manipulate than raw waveform space, which makes VAEs conceptually appealing for style transfer.
+}
+
+\qa{Why are standard VAEs not enough for raw audio?}{
+They are prone to posterior collapse, where the decoder ignores the latent code, and they often struggle with long sequential structure because a single bottleneck is too weak for dense audio. Raw audio is simply too complex for a naive VAE setup.
+}
+
+\qa{Why are latent spaces still valuable even if disentanglement is imperfect?}{
+Because a latent space can still act as a compact, more meaningful workspace for editing, interpolation, conditioning, and resynthesis. A latent representation does not have to be perfectly disentangled to be useful. It just has to preserve enough structure to support better manipulation than raw waveform space.
+}
+
+\qa{What is RAVE, and why is it in the presentation?}{
+RAVE is a neural audio VAE-style model designed for fast, high-quality synthesis. It is in the presentation because it shows that latent audio can become practical enough for editing and resynthesis, which is an important shift away from raw waveform-only thinking.
+}
+
+\qa{If RAVE is not a strong disentanglement model, why talk about it?}{
+Because its importance is not that it perfectly separates content and style. Its importance is that it makes high-quality latent audio practical. That helps justify later models that also rely on working in a compressed audio space rather than directly in raw waveform space.
+}
+
+\qa{How does RAVE improve over naive VAEs?}{
+It uses spectral losses instead of only sample-wise waveform reconstruction, convolutional architectures that are less prone to some VAE failure modes, sequences of latent codes rather than one global code, and an adversarial fine-tuning stage to sharpen the decoder.
+}
+
+\qa{What is MoVE, and why is it more directly relevant to style transfer than RAVE?}{
+MoVE stands for Modulated Variational auto-Encoders for many-to-many musical timbre transfer. It is more directly relevant because it was built specifically for musical timbre transfer, while RAVE is a broader latent-audio model rather than a style-transfer-specific model.
+}
+
+\qa{How does MoVE use latent space differently from RAVE?}{
+MoVE uses latent space mainly as a transfer space for controllable many-to-many timbre change across domains. RAVE uses latent space mainly as a practical audio workspace for high-quality encoding, resynthesis, and manipulation. So MoVE is more transfer-oriented, while RAVE is more infrastructure-oriented.
+}
+
+\qa{What does FiLM do, and why is it mentioned with MoVE and later again on its own?}{
+FiLM is a conditioning mechanism that uses a condition vector to scale and shift hidden features throughout a network. It appears with MoVE because MoVE uses it for style control, and it appears again later because FiLM is also a general conditioning idea that matters beyond that one model.
+}
+
+\qa{What is the practical takeaway from the VAE, RAVE, and MoVE section?}{
+The practical takeaway is that the field moved from generic generation toward more structured internal representations. That opened the door to controllable transfer, especially once models started using latent spaces not just for compression, but for style-conditioned manipulation.
+}
+\end{enumerate}
+
+\section{Modern Controllable Synthesis}
+
+\begin{enumerate}[start=38]
+\qa{What is BigVGAN, and why do we include it in a style-transfer talk?}{
+BigVGAN is a neural vocoder that converts intermediate audio representations into realistic waveform audio. We include it because even if a model has a good latent or spectral representation, listeners only judge the final waveform, so realism at the decoding stage still matters.
+}
+
+\qa{What is the role of the Snake activation in BigVGAN?}{
+The Snake activation adds a periodic component to the activation function, which helps the model represent periodic waveform structure more naturally. That matters because audio is inherently periodic, and standard activations are not especially well matched to that structure.
+}
+
+\qa{Why is FiLM important beyond MoVE?}{
+FiLM is a general mechanism for injecting conditioning information deeply into a network. For style transfer, that matters because style should often influence many internal layers rather than being inserted once at the input. It is a clean way to make style control more explicit.
+}
+
+\qa{What is a DDPM in simple terms?}{
+A DDPM is a diffusion model that gradually adds noise to data during a forward process and then learns the reverse process that removes the noise. The model generates by repeated refinement rather than one-shot synthesis.
+}
+
+\qa{Why are diffusion models attractive for style transfer?}{
+They are attractive because iterative refinement usually gives more stability and more room for control than many older model families. That makes diffusion a good fit for re-authoring tasks where the model needs to move toward a target style without completely losing the source structure.
+}
+
+\qa{What is classifier-free guidance?}{
+Classifier-free guidance is a way to control how strongly a diffusion model follows a condition, such as a target style, without needing a separate external classifier. It combines conditional and unconditional predictions to create a practical guidance scale.
+}
+
+\qa{Why is classifier-free guidance useful for style transfer?}{
+Because it turns the vague idea of ``push harder toward the target style'' into an actual control knob. Lower guidance generally preserves more naturalness and diversity, while higher guidance pushes harder toward the target condition, sometimes at the expense of fidelity or stability.
+}
+
+\qa{What is SDEdit?}{
+SDEdit is an editing-style diffusion method that starts from a noised version of an existing source instead of starting from pure noise. The source is partially corrupted, then the model denoises it back toward the data manifold.
+}
+
+\qa{Why is SDEdit especially relevant to music style transfer?}{
+Because music style transfer usually starts from an existing piece that we want to preserve in some way. SDEdit gives a principled way to control how far the model moves away from the source, which maps very naturally onto the content-versus-style tradeoff.
+}
+
+\qa{What is AudioLDM, and why is it one of the most relevant modern models here?}{
+AudioLDM is a latent diffusion model for audio. It is highly relevant because it shows that diffusion can happen in a learned audio latent space, which makes controllable generation and transformation more practical than working directly on raw waveforms.
+}
+
+\qa{Why does AudioLDM fit the style-transfer story better than a generic diffusion explanation alone?}{
+Because it connects diffusion to audio re-authoring rather than only to abstract generation. It suggests that a model can work in a compressed but meaningful audio space, apply style-conditioned diffusion there, and decode the result back into believable sound.
+}
+\end{enumerate}
+
+\section{Comparisons, Trends, and Likely Follow-Ups}
+
+\begin{enumerate}[start=49]
+\qa{If you had to summarize the field in one sentence, what would you say?}{
+The field has moved from proving that neural audio generation is possible toward building structured, controllable systems that can preserve musical identity while changing style more deeply and realistically.
+}
+
+\qa{Why is diffusion presented as the modern direction?}{
+Because it combines progressive generation, strong conditioning, explicit guidance control, and editing-style source anchoring. Those properties make it better matched to the real style-transfer problem than many earlier model families.
+}
+
+\qa{Why are older waveform models still worth mentioning if diffusion is stronger?}{
+Because they reveal the problems that later methods are trying to solve. WaveNet exposed the realism-versus-speed tradeoff. WaveGAN exposed the difficulty of stable raw waveform generation. GANSynth showed the importance of working in a better representation.
+}
+
+\qa{Why is timbre transfer not the same as full genre transfer?}{
+Timbre transfer mainly changes local sound color. Genre transfer can require broader changes in instrumentation, groove, production style, and sometimes long-range musical organization. So timbre transfer is an important subproblem, but it is not the full genre-remastering problem.
+}
+
+\qa{What does it mean to say the field is moving toward structure-aware genre reconstruction?}{
+It means the goal is no longer just to add a new sonic texture on top of the original audio. Instead, the field is increasingly trying to preserve the musical skeleton while rebuilding the surrounding acoustic world in a way that sounds native to the target style or genre.
+}
+
+\qa{Which models in the presentation are most directly about style transfer itself?}{
+MoVE is one of the most directly style-transfer-specific models because it focuses on many-to-many musical timbre transfer. AudioLDM is also very relevant because it supports controllable audio transformation in latent diffusion space. By contrast, models like WaveNet or BigVGAN are important support pieces rather than direct style-transfer solutions.
+}
+
+\qa{What is the difference between realism and controllability?}{
+Realism asks whether the audio sounds believable and natural. Controllability asks whether the model can change the intended factors while preserving the right ones. A model can sound realistic but still fail as a style-transfer system if it does not preserve content or follow the target style in a usable way.
+}
+
+\qa{What is one strong closing answer if someone asks what the hardest problem still is?}{
+One strong answer is long-form coherent re-authoring: preserving recognizable musical identity over time while applying a convincing style or genre change without artifacts. That is where representation, disentanglement, realism, and control all collide at once.
+}
+\end{enumerate}
+
+\section*{Quick Review List}
+If time is short before presenting, the highest-value questions to review are: 2, 7, 14, 18, 24, 28, 33, 35, 41, 45, 47, 50, and 56. Those cover the core logic of the entire deck.
+
+\end{document}

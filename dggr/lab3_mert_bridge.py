@@ -7,6 +7,7 @@ from typing import Optional
 import librosa
 import numpy as np
 import torch
+import torchaudio
 from transformers import AutoModel, AutoFeatureExtractor
 
 from .lab3_bridge import load_audio_chunk
@@ -140,6 +141,51 @@ class FrozenMERT:
             feat = h.mean(dim=1)
 
         return feat.detach().cpu().numpy().astype(np.float32)
+
+    def extract_features_batch_tensor(self, waveforms: torch.Tensor, sample_rate: int) -> torch.Tensor:
+        """Extract mean-pooled features from a batch of tensors with gradients to audio.
+
+        Args:
+            waveforms: [B, T] or [B, 1, T] float tensor.
+            sample_rate: sampling rate of `waveforms`.
+
+        Returns:
+            features: [B, D] tensor on the same device as the model.
+        """
+        if waveforms.ndim == 3:
+            if int(waveforms.shape[1]) != 1:
+                raise ValueError(f"Expected mono audio [B,1,T], got {tuple(waveforms.shape)}")
+            x = waveforms.squeeze(1)
+        elif waveforms.ndim == 2:
+            x = waveforms
+        else:
+            raise ValueError(f"Expected [B,T] or [B,1,T], got {tuple(waveforms.shape)}")
+
+        x = x.to(self.device).float()
+        if int(sample_rate) != int(self.cfg.sample_rate):
+            x = torchaudio.functional.resample(
+                x,
+                orig_freq=int(sample_rate),
+                new_freq=int(self.cfg.sample_rate),
+                lowpass_filter_width=64,
+                rolloff=0.9475937167399596,
+                resampling_method="sinc_interp_hann",
+            )
+
+        # Keep the scale stable for the frozen encoder while preserving gradients.
+        peak = x.abs().amax(dim=1, keepdim=True).clamp_min(1.0)
+        x = torch.clamp(x / peak, min=-1.0, max=1.0)
+
+        outputs = self.model(
+            input_values=x,
+            attention_mask=None,
+            output_hidden_states=True,
+        )
+        hidden_states = outputs.hidden_states
+        layer_idx = self.layer if self.layer >= 0 else len(hidden_states) + self.layer
+        layer_idx = max(0, min(layer_idx, len(hidden_states) - 1))
+        h = hidden_states[layer_idx]
+        return h.mean(dim=1)
 
     def load_mert_chunk(self, path: Path, start_sec: float = 0.0) -> np.ndarray:
         """Load audio chunk at MERT sample rate."""

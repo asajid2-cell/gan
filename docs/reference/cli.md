@@ -73,7 +73,7 @@ Notes:
 
 ## Lab 4 (long-form coherence)
 
-### `lab 3/run_lab4_longform_coherence.py`
+### `lab 4/run_lab4_longform_coherence.py`
 
 Purpose:
 - Long-form chunked generation with *coherence-first* constraints:
@@ -101,4 +101,3 @@ Quickly vocodes a small number of diffusion samples at different guidance scales
 
 ### `lab 3/quick_eval_sdedit.py` and `lab 3/quick_eval_sdedit_v2.py`
 Quickly tests SDEdit-style transfer and envelope-transfer variants for timbral shift.
-

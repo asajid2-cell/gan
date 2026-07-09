@@ -1,0 +1,48 @@
+SLIDE 1: Musical Style Transfer || Sahara Kaul, Ahmed Sajid, Kelsey Pattison
+SLIDE 2: Introduction
+SLIDE 3: Style Transfer || What is style transfer? || To take the content of something and express it in the style of another
+SLIDE 4: Style Transfer || Content || Style || Output
+SLIDE 5: Musical Style Transfer || Demo
+SLIDE 6: Style vs Content || Style: Timbre/tone quality, instrumentation, dynamics, tempo  /  /  / Content: melody, rhythm, structure
+SLIDE 7: The Disentanglement Problem || Unlike images, where content and style can be separated visually, in music they are deeply intertwined and audio signals are complex and high dimensional. || Separating style and content is not simple
+SLIDE 8: The Representation Problem || In order to do style transfer, there needs to exist a representation that is expressive enough for controllable transfer
+SLIDE 9: Audio Representations || Audio can be represented as: /  / MIDI  /  / Spectrogram /  / Raw waveforms
+SLIDE 10: Audio Representations || MIDI /  / A MIDI file stores information about notes but not specific sounds / small file size / easy manipulation / some information lost
+SLIDE 11: Audio Representations || Raw waveforms /  / X-axis represents time / Y-axis represents displacement of air molecules / The oscillation frequency represents pitch / Wave shape represents timbre
+SLIDE 12: Audio Representations || Spectrogram  /  / Commonly used in style transfer model architectures / X-axis represents time / Y-axis represents frequency / Color intensity represents strength of the frequency / Calculated from raw waveforms using Short Time Fourier Transform
+SLIDE 13: Short Time Fourier Transform || Fourier Transform: Tells us what a signal is made out of /  / Signals can be made out of individual sinusoids with properties like their frequency, amplitude, and position in the signal. /  / It answers the questions: What frequencies are inside this signal
+SLIDE 14: Short Time Fourier Transform || f(t): Audio signal / e-iωt:  Sinusoidal wave || Fourier Transform: || Instead of telling you amplitude over time, the output of fourier transform tells you strength at each frequency
+SLIDE 15: Short Time Fourier Transform || Problem || The Fourier Transform looks at the entire signal at once, so it tells you which frequencies exist, but not when they appear
+SLIDE 16: Short Time Fourier Transform || Solution || The Short Time Fourier Transform fixes this with one simple idea: instead of looking at the entire signal at once, you only look at a small slice at a time.
+SLIDE 17: The Realism Problem || Even if a model preserves the right structure it can still sound bad. Audio is unforgiving with lots of intertwined components. Individual components that sound good may sound bad when played together.
+SLIDE 18: The Realism Problem
+SLIDE 19: The Long-Form Coherence Problem || The longer a clip is, the more chance there is for small errors to compound over time.
+SLIDE 20: Early Audio Generation Background
+SLIDE 21: WaveNet || First AI model to generate  / music and natural sounding / speech  / Based on PixelCNN / Autoregressive  / Predicts one sample given the previous sample(s) / SLOW!!
+SLIDE 22: General Adversarial Networks
+SLIDE 23: WaveGAN || Adapted DCGAN for audio / Significantly faster than WaveNet
+SLIDE 24: WaveGAN || Problem: phase precession || Demo
+SLIDE 25: GANSynth || Generates spectrograms instead of audio / Magnitude and Instantaneous Frequency / Uses STFT to convert spectrogram to audio || Generator || Spectrograms || Integrate IF to get unwrapped phase || Combine magnitude and phase to get complex spectrogram || STFT to convert spectrogram to audio
+SLIDE 26: GANSynth || Demo
+SLIDE 27: Early Audio Generation is not Enough || Showed that audio generation using neural networks was possible / Can condition models for certain stylistic effects / CANNOT guarantee that content is preserved
+SLIDE 28: Latent Structured Audio and Style Transfer
+SLIDE 29: Variational Autoencoders (VAES) || Compress input into latent space (encoder), reconstruct (decoder) / Naive implementation prone to posterior collapse / Incredibly important to style-transfer as in extracts a latent representation
+SLIDE 30: RAVE || Uses Convolutional layers instead of RNN / Uses spectral losses instead of only raw sample-wise reconstruction. / Two stage training procedure: / Trains encoder and decoder to learn compact latent representation / Trains only decoder with GAN discriminator  / Enables style transfer  / Encode from one domain, decode from another
+SLIDE 31: RAVE || Demo
+SLIDE 32: It was built specifically for musical timbre transfer rather than generic audio generation. / Uses FiLM conditioning and an MMD objective to support many-to-many transfer in a single multi-domain model. / Very relevant conceptually, but still closer to timbre transfer than full genre remastering. || MoVE
+SLIDE 33: FiLM is a conditioning mechanism that lets a style vector scale and shift hidden features throughout the network. / Its role is style-control logic rather than final waveform synthesis. || FiLM
+SLIDE 34: FiLM Formula
+SLIDE 35: BigVGAN is a universal neural vocoder: it turns intermediate audio representations into more realistic waveform audio. / Its role is realism rather than transfer logic itself. || BigVGAN
+SLIDE 36: BigVGAN
+SLIDE 37: Modern Controllable Synthesis and Style Transfer
+SLIDE 38: Denoising Diffusion Probabilistic Models gradually destroy a sample with noise and learn the reverse denoising process. / Diffusion matters because generation happens by gradual refinement rather than one-shot synthesis. / That usually gives more stability and more room for control than many older model families. || DDPM
+SLIDE 39: DDPM Formula
+SLIDE 40: Classifier-Free Guidance adds a practical control knob for how strongly the generation should follow the target condition. / SDEdit starts from a noised version of an existing source instead of pure noise. / Together they make the content-versus-style tradeoff much more explicit. || Classifier-free Guidance and SDEdit
+SLIDE 41: Classifier-free Guidance Formula
+SLIDE 42: SDEdit Formula
+SLIDE 43: AudioLDM shows that high-quality controllable generation can happen in learned latent audio spaces. /  / This makes diffusion much more relevant to editing and transformation, not only text-to-audio generation. /  / Diffusion is central because it combines progressive generation, conditioning, guidance, and source anchoring. || AudioLDM
+SLIDE 44: AudioLDM matters because it shows that diffusion is not only useful for generating audio from scratch, but also for controllable audio transformation and editing / It suggests that a model can work in a compressed but meaningful audio space, apply style-conditioned diffusion there, and then decode the result back into believable sound || AudioLDM
+SLIDE 45: AudioLDM || Demo
+SLIDE 46: Disentanglement /  Controllable latent audio / Diffusion-based re-authoring / Long-form coherence / The field moved from raw generation toward structured representations and explicit control. || Overview of Field Trends
+SLIDE 47: Conclusion || Music style transfer is not just an audio-generation problem. / It is also a structure-preservation, representation, conditioning, synthesis, and coherence problem. / The field is moving from surface transfer toward structure-aware genre reconstruction.
+SLIDE 48: References || https://deepmind.google/research/wavenet/  / https://medium.com/@satyam_kumar/understanding-wavenet-architecture-361cc4c2d623  / https://developers.google.com/machine-learning/gan/gan_structure  / https://www.researchgate.net/figure/Architecture-of-parallel-WaveGAN_fig2_348498341  / https://lilianweng.github.io/posts/2018-08-12-vae/  / https://chrisdonahue.com/wavegan/  / https://storage.googleapis.com/magentadata/papers/gansynth/index.html  / https://www.youtube.com/watch?v=dMZs04TzxUI

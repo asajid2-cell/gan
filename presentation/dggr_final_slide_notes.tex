@@ -1,0 +1,109 @@
+\documentclass[11pt]{article}
+\usepackage[margin=0.7in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{parskip}
+\usepackage{enumitem}
+\setlist[itemize]{topsep=6pt,itemsep=6pt,parsep=2pt,partopsep=0pt,leftmargin=1.2em}
+\pagestyle{plain}
+
+\title{DGGR Final Presentation Notes}
+\date{}
+
+\begin{document}
+\maketitle
+
+Simple glanceable notes for the 10-slide main deck.
+
+\section*{Slide 1: Deep Generative Genre Remastering}
+\begin{itemize}
+\item Open by contrasting coat-of-paint style transfer with controlled genre remastering.
+\item Frame the project as: separate content and style, build a target space, generate toward that target, then make it survive long-form playback.
+\item Point to the pipeline strip and the content / realism / style tradeoff.
+\item Keep this slide conceptual and do not play audio yet.
+\item End by saying the first two labs matter because without trustworthy control, later audio is hard to interpret.
+\end{itemize}
+
+\section*{Slide 2: Lab 1}
+\begin{itemize}
+\item Explain that Lab 1 made the repo technically trustworthy by learning \texttt{z\_content}, \texttt{z\_style}, and a music gate.
+\item Phrase it simply: content is what the song is doing, style is how it sounds.
+\item Walk through the encoder split diagram while explaining the three outputs.
+\item Style probe 0.9417 means style is really concentrated in the style branch.
+\item Leakage 0.1083 means content is not secretly carrying style under another name.
+\item Gate ROC-AUC 0.9299 means the model learned musically valid structure well enough to trust later stages.
+\item End by saying that once style existed as a real signal, the next question was whether it could become a stable target.
+\end{itemize}
+
+\section*{Slide 3: Lab 2}
+\begin{itemize}
+\item Explain that Lab 2 turned style from an embedding into a target space the generator could actually aim for.
+\item Point to the cluster figure first, then the centroid or target-vector diagram.
+\item Silhouette 0.4939 means the space is not one tangled cloud.
+\item Linear probe 0.8554 means the genre signal is accessible instead of buried.
+\item Nearest-centroid 0.8514 means the centroids behave like real genre anchors.
+\item End by saying that once representation and target space were in place, the remaining question became generation.
+\end{itemize}
+
+\section*{Slide 4: From Codec Editing to Diffusion Generation}
+\begin{itemize}
+\item Introduce codec as the first strong proof that controlled reconstruction and editing were possible.
+\item Then explain that diffusion became the practical backbone because it gave the project a stronger realism anchor.
+\item Point to the side-by-side codec versus diffusion comparison.
+\item Play one short codec clip and one short diffusion clip.
+\item End by saying that once diffusion became the main path, the core tradeoff became obvious.
+\end{itemize}
+
+\section*{Slide 5: Short-Form Generation}
+\begin{itemize}
+\item Use this slide to make the content-versus-style tradeoff feel obvious.
+\item Say clearly that style under-shoot is disappointing, but identity collapse is destructive.
+\item Point to the conservative / balanced / over-pushed comparison.
+\item Play a safe but style-light clip, then a balanced clip, then an over-pushed clip.
+\item End by saying that even promising local clips still had to survive time.
+\end{itemize}
+
+\section*{Slide 6: Long-Form Generation}
+\begin{itemize}
+\item Explain that long-form accompaniment generation is the real remaining bottleneck.
+\item Say that local quality is not enough because seams, warble, drift, and instability build up over time.
+\item Point to the chunk timeline or seam diagram.
+\item Play one local-good clip and then the matching long-form failure.
+\item End by saying that this is why the best practical system came from engineering around the generator.
+\end{itemize}
+
+\section*{Slide 7: Hybrid Engineering}
+\begin{itemize}
+\item Present the hybrid path as a systems solution, not a compromise in the bad sense.
+\item Explain that we preserved vocals where the model was fragile and generated accompaniment where style mattered most.
+\item Point to the preserved-vocal hybrid flow.
+\item Play the before / after practical comparison and then the best practical clip.
+\item End by saying that once we had a practical winner, the next question was whether later branches could beat it.
+\end{itemize}
+
+\section*{Slide 8: Later Experiments}
+\begin{itemize}
+\item Frame this as the learning slide, not the graveyard slide.
+\item Explain that stronger style movement and new local textures were possible, but long-form stability stayed hard.
+\item Point to the compact family table and summarize what each knob improved or broke.
+\item Play only one or two representative later-branch clips.
+\item End by saying the conclusion is not that nothing worked, but that the hard part became clearer.
+\end{itemize}
+
+\section*{Slide 9: What We Actually Solved}
+\begin{itemize}
+\item Keep this slide short and confident.
+\item Say that the project succeeded as a pipeline even though it did not fully solve long-form generation.
+\item State the four defendable wins: content/style representation, target-space control, locally plausible accompaniment generation, and a usable hybrid workflow.
+\item End by saying that this leaves one final question: what exactly still remains?
+\end{itemize}
+
+\section*{Slide 10: What Still Remains}
+\begin{itemize}
+\item End on the real unresolved problem: long-form accompaniment generation.
+\item Say that realism, style separation, new instrumental character, and song identity still need to survive together over time.
+\item Do not play audio here; let the conclusion land cleanly.
+\item Final line: the next push should target long-form stability before even harder style pressure.
+\end{itemize}
+
+\end{document}

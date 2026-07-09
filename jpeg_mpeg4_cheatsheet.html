@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JPEG + MPEG-4 Cheat Sheet</title>
+  <style>
+    :root {
+      --bg: #f3f0e8;
+      --ink: #182128;
+      --muted: #46555f;
+      --panel: #fffefb;
+      --line: #b7b09f;
+      --accent: #7c2d12;
+      --accent-2: #164e63;
+      --accent-3: #3f6212;
+      --mono: "Cascadia Mono", "Consolas", "Courier New", monospace;
+      --sans: "Aptos", "Segoe UI", "Trebuchet MS", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    @page {
+      size: letter landscape;
+      margin: 0.25in;
+    }
+
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: var(--sans);
+    }
+
+    body {
+      padding: 0.12in;
+    }
+
+    .sheet {
+      width: 10.5in;
+      min-height: 7.62in;
+      margin: 0 auto;
+      padding: 0.12in 0.14in 0.1in;
+      background:
+        radial-gradient(circle at top right, rgba(22, 78, 99, 0.12), transparent 26%),
+        radial-gradient(circle at bottom left, rgba(124, 45, 18, 0.10), transparent 28%),
+        var(--panel);
+      border: 1px solid var(--line);
+      overflow: hidden;
+    }
+
+    .header {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr;
+      gap: 0.1in;
+      align-items: end;
+      margin-bottom: 0.08in;
+      padding-bottom: 0.06in;
+      border-bottom: 1px solid var(--line);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 15px;
+      line-height: 1;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .sub {
+      margin-top: 3px;
+      font-size: 7.4px;
+      color: var(--muted);
+      line-height: 1.15;
+    }
+
+    .strap {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 5px;
+      align-content: start;
+    }
+
+    .tag {
+      padding: 2px 5px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      font-size: 6.5px;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      background: #fff;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.09in;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      padding: 0.055in;
+      background: rgba(255, 255, 255, 0.86);
+      break-inside: avoid;
+    }
+
+    .panel h2 {
+      margin: 0 0 0.04in;
+      font-size: 9.3px;
+      line-height: 1;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .jpeg h2 { color: var(--accent); }
+    .bridge h2 { color: var(--accent-2); }
+    .mpeg h2 { color: var(--accent-3); }
+
+    p,
+    li,
+    td,
+    th {
+      font-size: 6.95px;
+      line-height: 1.13;
+    }
+
+    p {
+      margin: 0 0 0.035in;
+    }
+
+    ul,
+    ol {
+      margin: 0.02in 0 0.04in 0.11in;
+      padding: 0;
+    }
+
+    li {
+      margin: 0 0 1px;
+    }
+
+    .compact li {
+      margin-bottom: 1px;
+    }
+
+    .formula,
+    .mono,
+    pre {
+      font-family: var(--mono);
+    }
+
+    .formula {
+      margin: 0 0 3px;
+      padding: 2px 4px;
+      border-left: 2px solid var(--line);
+      background: rgba(24, 33, 40, 0.03);
+      font-size: 6.45px;
+      line-height: 1.1;
+      white-space: normal;
+    }
+
+    .mini-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.06in;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 0.03in;
+    }
+
+    th,
+    td {
+      border: 1px solid #cfc8ba;
+      padding: 1px 2px;
+      vertical-align: top;
+    }
+
+    th {
+      background: rgba(24, 33, 40, 0.05);
+      text-align: left;
+    }
+
+    .matrix {
+      margin: 0.02in 0 0;
+      padding: 3px 4px;
+      border: 1px solid #cfc8ba;
+      background: #fff;
+      font-size: 6px;
+      line-height: 1.08;
+      white-space: pre;
+    }
+
+    .callout {
+      padding: 4px 5px;
+      border: 1px dashed #bcae93;
+      background: rgba(124, 45, 18, 0.04);
+      margin-top: 0.03in;
+    }
+
+    .bridge .callout {
+      background: rgba(22, 78, 99, 0.04);
+    }
+
+    .mpeg .callout {
+      background: rgba(63, 98, 18, 0.04);
+    }
+
+    .kicker {
+      font-size: 6.2px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      margin-bottom: 2px;
+    }
+
+    .footer {
+      margin-top: 0.05in;
+      padding-top: 0.04in;
+      border-top: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      gap: 0.06in;
+      font-size: 6.1px;
+      color: var(--muted);
+    }
+
+    .tight {
+      margin-top: 0.03in;
+    }
+
+    @media print {
+      body {
+        padding: 0;
+        background: #fff;
+      }
+
+      .sheet {
+        width: auto;
+        min-height: auto;
+        margin: 0;
+        border: 0;
+        background: #fff;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="sheet">
+    <section class="header">
+      <div>
+        <h1>JPEG + MPEG-4 Natural Video Coding</h1>
+        <div class="sub">
+          One-page print cheatsheet distilled from <span class="mono">Final_JPEG_compression.pdf</span> and
+          <span class="mono">MPEG4_video.pdf</span>. Focus: baseline JPEG and MPEG-4 natural video coding.
+        </div>
+      </div>
+      <div class="strap">
+        <div class="tag">Print Letter Landscape</div>
+        <div class="tag">Disable Browser Headers/Footers</div>
+        <div class="tag">Compression = Remove Spatial + Temporal Redundancy</div>
+      </div>
+    </section>
+
+    <section class="grid">
+      <div>
+        <article class="panel jpeg">
+          <h2>JPEG Baseline Pipeline</h2>
+          <ol class="compact">
+            <li><strong>Convert color:</strong> RGB &rarr; YCbCr. Separate luminance from chrominance.</li>
+            <li><strong>Optionally subsample chroma:</strong> eye is more sensitive to Y than Cb/Cr; 2x downsample in both chroma dimensions gives about 50% chroma-data savings.</li>
+            <li><strong>Split into 8&times;8 blocks:</strong> good compression/complexity tradeoff.</li>
+            <li><strong>Level shift:</strong> subtract 128 from each sample so values are centered around 0 before DCT.</li>
+            <li><strong>2-D FDCT:</strong> transform pixels into spatial frequencies.</li>
+            <li><strong>Quantize:</strong> divide by quantization table, round to integers. This is the main lossy step.</li>
+            <li><strong>Zig-zag scan:</strong> reorder low-to-high frequencies so zeros cluster at the tail.</li>
+            <li><strong>Code DC separately:</strong> DC coefficient often uses differential coding from the previous block's DC.</li>
+            <li><strong>Code AC efficiently:</strong> run lengths + EOB + Huffman VLC.</li>
+          </ol>
+          <div class="callout">
+            <div class="kicker">Memory Hook</div>
+            JPEG removes <strong>spatial redundancy</strong>. Entropy coding is lossless; <strong>quantization is what throws information away</strong>.
+          </div>
+        </article>
+
+        <article class="panel jpeg">
+          <h2>Why DCT + YCbCr Work</h2>
+          <ul class="compact">
+            <li>DCT concentrates most natural-image energy near the low-frequency corner, especially the DC term.</li>
+            <li>Low frequencies capture smooth shading; high frequencies capture edges, sharp transitions, and noise.</li>
+            <li>Humans notice luminance errors more than chrominance errors, so chroma can be subsampled and quantized more aggressively.</li>
+            <li>After quantization, many high-frequency coefficients become 0, which is exactly what zig-zag + VLC exploit.</li>
+          </ul>
+          <div class="formula">Y = 0.299R + 0.587G + 0.114B</div>
+          <div class="formula">Cb &asymp; -0.1687R - 0.3313G + 0.5000B + 128</div>
+          <div class="formula">Cr &asymp; 0.5000R - 0.4187G - 0.0813B + 128</div>
+          <div class="formula">F<sub>q</sub>(u,v) = round(F(u,v) / Q(u,v))</div>
+          <div class="formula">C(k) = 1/&radic;2 for k = 0, otherwise 1</div>
+          <div class="formula">
+            F(u,v) = 1/4 C(u)C(v) &Sigma;&Sigma; f(x,y) cos(((2x+1)u&pi;)/16) cos(((2y+1)v&pi;)/16)
+          </div>
+        </article>
+
+        <article class="panel jpeg">
+          <h2>JPEG Luma Quantization Matrix</h2>
+          <pre class="matrix">16 11 10 16 24 40 51 61
+12 12 14 19 26 58 60 55
+14 13 16 24 40 57 69 56
+14 17 22 29 51 87 80 62
+18 22 37 56 68 109 103 77
+24 35 55 64 81 104 113 92
+49 64 78 87 103 121 120 101
+72 92 95 98 112 100 103 99</pre>
+          <p class="tight">
+            Coarser entries appear toward higher frequencies, so those coefficients are pushed toward 0 first. JPEG also defines chroma tables with even larger values.
+          </p>
+        </article>
+
+        <article class="panel jpeg">
+          <h2>Zig-Zag, EOB, Decode Path</h2>
+          <ul class="compact">
+            <li><strong>Zig-zag order:</strong> moves from DC outward so significant terms appear early and zeros late.</li>
+            <li><strong>EOB:</strong> stop symbol for trailing zeros; avoids writing repeated zero coefficients.</li>
+            <li><strong>AC coding:</strong> run-lengths of zeros plus coefficient sizes feed Huffman VLC tables.</li>
+            <li><strong>Decode order:</strong> Huffman decode &rarr; inverse zig-zag &rarr; dequantize &rarr; IDCT &rarr; add 128 &rarr; convert back to RGB.</li>
+            <li><strong>Result:</strong> entropy-decoded coefficients are exact, but post-quantization image samples are only approximate.</li>
+          </ul>
+          <div class="formula">Example tail after zig-zag: [... 2, 0, 0, 0, -1, -1, EOB]</div>
+        </article>
+      </div>
+
+      <div>
+        <article class="panel bridge">
+          <h2>JPEG vs MPEG-4</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Topic</th>
+                <th>JPEG</th>
+                <th>MPEG-4 Natural Video</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Primary domain</td>
+                <td>Still images</td>
+                <td>Video sequences</td>
+              </tr>
+              <tr>
+                <td>Redundancy removed</td>
+                <td>Spatial</td>
+                <td>Spatial + temporal</td>
+              </tr>
+              <tr>
+                <td>Core transform</td>
+                <td>8&times;8 DCT</td>
+                <td>Motion-compensated hybrid DCT</td>
+              </tr>
+              <tr>
+                <td>Prediction</td>
+                <td>DC DPCM across blocks</td>
+                <td>Motion vectors across frames/VOPs</td>
+              </tr>
+              <tr>
+                <td>Lossy step</td>
+                <td>Quantization</td>
+                <td>Quantization (also residual coding choices)</td>
+              </tr>
+              <tr>
+                <td>Entropy stage</td>
+                <td>Huffman</td>
+                <td>VLC/Huffman after scan</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="callout">
+            JPEG is basically the <strong>texture coder</strong> inside MPEG-style codecs. MPEG adds <strong>motion prediction, reference frames, VOP types, and object tools</strong>.
+          </div>
+        </article>
+
+        <article class="panel bridge">
+          <h2>MPEG-4 Overview</h2>
+          <ul class="compact">
+            <li>Goal is not only compression: also error resiliency, authentication, encryption, and scalability in bitrate/resolution/quality.</li>
+            <li>Supports both traditional rectangular frames and object-based / region-based coding.</li>
+            <li>Video coding is based on <strong>motion-compensated hybrid DCT coding</strong> similar to MPEG-1/2.</li>
+            <li><strong>Encoder is not standardized</strong>; the standard fixes the bitstream syntax and decoder behavior.</li>
+            <li>Profiles = tool subsets; levels = complexity bounds such as bitrate, memory, and compute.</li>
+          </ul>
+        </article>
+
+        <article class="panel bridge">
+          <h2>Object Hierarchy + Picture Types</h2>
+          <div class="formula">VS &rarr; VO &rarr; VOL &rarr; GOV &rarr; VOP</div>
+          <ul class="compact">
+            <li><strong>Video Object Sequence (VS):</strong> ordered collection of video objects.</li>
+            <li><strong>Video Object (VO):</strong> an object, for example a video entity.</li>
+            <li><strong>Video Object Layer (VOL):</strong> one layer per resolution/bitrate variant.</li>
+            <li><strong>Group of VOPs (GOV):</strong> analogous to a GOP; supports random access.</li>
+            <li><strong>Video Object Plane (VOP):</strong> analogous to a frame, but can contain both texture (YUV) and shape (alpha).</li>
+          </ul>
+          <table>
+            <thead>
+              <tr>
+                <th>Type</th>
+                <th>Reference rule</th>
+                <th>Compression intuition</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>I-VOP</td>
+                <td>No MC; intra only</td>
+                <td>Like JPEG; larger size, random-access anchor</td>
+              </tr>
+              <tr>
+                <td>P-VOP</td>
+                <td>Predict from previous I/P</td>
+                <td>Send MVs + residual</td>
+              </tr>
+              <tr>
+                <td>B-VOP</td>
+                <td>Predict from previous/future I/P</td>
+                <td>Best compression, weakest random access</td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="tight">
+            Coding order is typically not display order. Example pattern from the deck: <span class="mono">I0 B1 B2 P3 B4 B5 P6 ...</span>
+          </p>
+        </article>
+
+        <article class="panel bridge">
+          <h2>Texture Coding Inside MPEG</h2>
+          <ul class="compact">
+            <li>Macroblock size is 16&times;16; texture is split into 8&times;8 blocks for transform coding.</li>
+            <li>For intra MBs, picture data itself is coded; for inter MBs, the <strong>prediction error</strong> is coded.</li>
+            <li>Pipeline is effectively JPEG-style: YCrCb conversion, chroma subsampling, DCT, quantization, scan, VLC.</li>
+            <li>In MPEG-4, intra and inter macroblocks can use different quantization matrices because they code different statistics.</li>
+          </ul>
+        </article>
+      </div>
+
+      <div>
+        <article class="panel mpeg">
+          <h2>Motion Compensation Basics</h2>
+          <ul class="compact">
+            <li><strong>Temporal redundancy:</strong> consecutive frames often differ only by motion.</li>
+            <li><strong>Block matching:</strong> find best match for a macroblock in reference frame(s), send motion vector (MV) + prediction error.</li>
+            <li><strong>Inter mode:</strong> MB depends on other frames. <strong>Intra mode:</strong> MB decoded without references.</li>
+            <li><strong>Full-pel / half-pel / quarter-pel:</strong> finer MV resolution usually predicts better, but costs more interpolation.</li>
+          </ul>
+          <div class="formula">Half-pel interpolation: b = (A + B + 1) / 2, d = (A + B + C + D + 2) / 4</div>
+          <div class="callout">
+            P-VOP encoding: split frame into MBs &rarr; motion compensate each MB &rarr; subtract prediction &rarr; DCT-code residual blocks.
+          </div>
+        </article>
+
+        <article class="panel mpeg">
+          <h2>MPEG-4 Motion Tools</h2>
+          <ul class="compact">
+            <li><strong>1MV mode:</strong> one MV per 16&times;16 MB.</li>
+            <li><strong>4MV mode:</strong> split MB into four 8&times;8 blocks; one MV per block.</li>
+            <li><strong>Quarter-pel MC:</strong> 16x finer MV grid than full-pel.</li>
+            <li>MPEG-4 computes half-pel using an 8-tap FIR filter, then quarter-pel from bilinear interpolation.</li>
+            <li><strong>Boundary mirroring:</strong> cuts object-edge memory bandwidth.</li>
+            <li><strong>Global motion compensation (GMC):</strong> one set of motion parameters can describe pan/zoom/rotation for the whole VOP.</li>
+          </ul>
+          <div class="formula">FIR taps for improved half-pel: [-8, 24, -48, 160, 160, -48, 24, -8] / 256</div>
+          <div class="formula">
+            GMC uses 4 corner MVs in the VOP header; MB motion is derived by interpolation ("warping").
+          </div>
+        </article>
+
+        <article class="panel mpeg">
+          <h2>B-VOP Modes + Direct Mode</h2>
+          <ul class="compact">
+            <li>MPEG-1/2 B-prediction includes forward, backward, and interpolative modes; MPEG-4 adds <strong>direct mode</strong>.</li>
+            <li>Direct mode derives the two B-VOP MVs from temporal position plus a coded delta vector instead of sending both explicitly.</li>
+            <li>Skipped B-VOP MBs behave like direct mode with zero delta; if the backward reference is also skipped, implicit skipped mode falls back to forward mode with zero MV.</li>
+          </ul>
+          <div class="formula">T<sub>RB</sub> = t(current) - t(forward ref), T<sub>RD</sub> = t(backward ref) - t(forward ref)</div>
+          <div class="formula">MV<sub>f</sub> = (T<sub>RB</sub> / T<sub>RD</sub>) MV + MV<sub>d</sub></div>
+          <div class="formula">MV<sub>b</sub> = ((T<sub>RB</sub> - T<sub>RD</sub>) / T<sub>RD</sub>) MV + MV<sub>d</sub></div>
+        </article>
+
+        <article class="panel mpeg">
+          <h2>MPEG-4 Quantization + Scan Extras</h2>
+          <ul class="compact">
+            <li><strong>quantizer scale</strong> controls loss level. For 8-bit textures, range is 1..31; a different value may be used per VOP.</li>
+            <li><strong>Two quantizers:</strong> MPEG-style weighting-matrix quantization and H.263-style quantization without weighting matrices.</li>
+            <li><strong>Intra DC coefficient</strong> F[0][0] gets a special fixed-step treatment using <span class="mono">dc_scaler</span>.</li>
+            <li><strong>AC/DC prediction:</strong> MPEG-4 predicts selected AC and DC coefficients for intra blocks from neighbors.</li>
+            <li><strong>Alternative scans:</strong> horizontal and vertical scans can beat zig-zag for directional energy.</li>
+          </ul>
+          <table>
+            <thead>
+              <tr>
+                <th>Qp range</th>
+                <th>Luma dc_scaler</th>
+                <th>Chroma dc_scaler</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>1-4</td>
+                <td>8</td>
+                <td>8</td>
+              </tr>
+              <tr>
+                <td>5-8</td>
+                <td>2Qp</td>
+                <td>(Qp + 13) / 2</td>
+              </tr>
+              <tr>
+                <td>9-24</td>
+                <td>Qp + 8</td>
+                <td>(Qp + 13) / 2</td>
+              </tr>
+              <tr>
+                <td>25-31</td>
+                <td>2Qp - 16</td>
+                <td>Qp - 6</td>
+              </tr>
+            </tbody>
+          </table>
+        </article>
+      </div>
+    </section>
+
+    <section class="footer">
+      <div>
+        Study priority: <strong>pipeline order</strong>, <strong>where the loss happens</strong>, <strong>I/P/B semantics</strong>,
+        <strong>motion vectors + residuals</strong>, and <strong>what MPEG-4 adds beyond MPEG-1/2</strong>.
+      </div>
+      <div>Print at 100% if possible; only scale down slightly if your browser forces extra margins.</div>
+    </section>
+  </main>
+</body>
+</html>

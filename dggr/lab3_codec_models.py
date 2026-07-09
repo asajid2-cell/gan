@@ -62,6 +62,7 @@ class CodecLatentTranslator(nn.Module):
         noise_dim: int = 32,
         residual_scale: float = 0.5,
         direct_output: bool = False,
+        direct_mix: float = 1.0,
     ):
         super().__init__()
         self.in_channels = int(in_channels)
@@ -70,6 +71,7 @@ class CodecLatentTranslator(nn.Module):
         self.noise_dim = int(noise_dim)
         self.residual_scale = float(residual_scale)
         self.direct_output = bool(direct_output)
+        self.direct_mix = float(max(0.0, min(1.0, direct_mix)))
         cond_dim = self.z_content_dim + self.z_style_dim + self.noise_dim
 
         self.in_proj = nn.Conv1d(self.in_channels, hidden_channels, kernel_size=3, padding=1)
@@ -114,9 +116,15 @@ class CodecLatentTranslator(nn.Module):
         h = self.out_norm(h)
         h = F.silu(h)
         raw = self.out_proj(h)
+        residual = q_src + self.residual_scale * torch.tanh(raw)
         if self.direct_output:
-            return raw
-        return q_src + self.residual_scale * torch.tanh(raw)
+            mix = float(self.direct_mix)
+            if mix >= 0.999:
+                return raw
+            if mix <= 0.001:
+                return residual
+            return (1.0 - mix) * residual + mix * raw
+        return residual
 
 
 class WaveDiscBlock(nn.Module):
