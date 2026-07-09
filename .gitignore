@@ -24,6 +24,8 @@ Thumbs.db
 # Generated artifacts
 lab 2/artifacts/
 notebooks/_manifest.json
+data/real_music_manifests/
+data/piano_arranger_manifests/
 
 # Local scratch
 _cell11_current.py
@@ -36,3 +38,24 @@ reports/
 
 # Experimental scratch dirs
 lab 3/diffusion_run1/
+
+# GUI outputs
+gui/outputs/
+saves2/piano_arranger/
+
+# Heavy generated training/audio outputs
+Desktop Outputs/
+Master Outputs/
+comparisons/
+demo/
+.tmp/
+test-results/
+lab 3.1/outputs/
+lab 3.2/outputs/
+lab 3.3/outputs/
+lab 3.4/outputs/
+lab 3.5/outputs/
+lab 3.6/outputs/
+*.pt
+*.npz
+*.wav
